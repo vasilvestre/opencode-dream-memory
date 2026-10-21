@@ -157,6 +157,12 @@ and that flag beats the agent's pinned model. Override the file path with
 | `dream` | builds the corpus, then the light and deep passes |
 | `dream corpus` | only the corpus, no model, no cost |
 | `dream status` | one screen of state, read-only |
+| `dream reset` | deletes memory, diary, staging and corpus under `DREAM_HOME` |
+
+`dream reset` asks for confirmation; add `--yes` to skip it. It never touches
+your projects, and it refuses a `DREAM_HOME` that does not look like a dream
+home. When `$DREAM_HOME` is a git repo, the preimage commits keep the old
+content one `git checkout` away.
 
 `dream-corpus` and `dream-status` stay installed as standalone commands; they do
 the same thing as the two subcommands.

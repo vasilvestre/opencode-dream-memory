@@ -4,6 +4,7 @@
 # Usage: dream          corpus, then the light and deep passes (two agent runs)
 #        dream corpus   corpus only, no model, no cost
 #        dream status   one screen of state, read-only
+#        dream reset    delete memory, diary, staging and corpus (asks first)
 #
 # Everything is written under $DREAM_HOME (default ~/dreams), never in the
 # projects themselves: this is the agent's memory of the user, not project docs.
@@ -12,16 +13,47 @@ set -eu
 
 # Resolve next to this script, so a custom BIN_DIR works without a PATH.
 here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+root="${DREAM_HOME:-$HOME/dreams}"
 
 # One entry point. The standalone scripts stay installed and delegated to.
 case "${1:-}" in
   status) exec "$here/dream-status" ;;
   corpus) exec "$here/dream-corpus" ;;
+  reset)
+    # Only $DREAM_HOME, and only when it looks like a dream home: a mistyped
+    # DREAM_HOME must not delete something else.
+    case $root in ''|/|"$HOME"|"$HOME/"|.) echo "dream: refusing to reset '$root'" >&2; exit 1 ;; esac
+    if [ -e "$root" ] && [ ! -d "$root/.dreams" ] && [ ! -d "$root/dreaming" ]; then
+      echo "dream: $root does not look like a dream home, refusing" >&2
+      exit 1
+    fi
+    if [ "${2:-}" != "--yes" ]; then
+      printf 'Delete every memory, diary and corpus under %s? [y/N] ' "$root" >&2
+      read -r answer || answer=
+      case $answer in y|Y|yes) ;; *) echo "dream: reset cancelled" >&2; exit 1 ;; esac
+    fi
+    rm -rf "$root/MEMORY.md" "$root/DREAMS.md" "$root/dreaming" "$root/projects" "$root/.dreams"
+    mkdir -p "$root/dreaming/light" "$root/dreaming/deep" "$root/projects" "$root/.dreams/session-corpus"
+    cat > "$root/MEMORY.md" <<'EOF'
+# Shared memory
+
+Facts true in every project, one per line. Project facts live in
+`projects/<project>/MEMORY.md`.
+EOF
+    cat > "$root/DREAMS.md" <<'EOF'
+# Dream Diary
+
+One entry per night, newest first. Durable facts live in [MEMORY.md](MEMORY.md).
+
+<!-- opencode:dreaming:diary:start -->
+EOF
+    echo "dream: reset done, $root is empty" >&2
+    exit 0
+    ;;
   '') ;;
-  *) echo "dream: unknown command '$1' (try: dream, dream status, dream corpus)" >&2; exit 2 ;;
+  *) echo "dream: unknown command '$1' (try: dream, dream status, dream corpus, dream reset)" >&2; exit 2 ;;
 esac
 
-root="${DREAM_HOME:-$HOME/dreams}"
 list="${DREAM_PROJECTS:-$HOME/.config/opencode/dream-projects}"
 day=$(date +%F)
 # One run at a time: two overlapping passes interleave writes and commits, and

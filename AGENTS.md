@@ -82,6 +82,7 @@ regression there produces no error, just lost memory.
 dream corpus   # free: builds the corpus only
 dream status   # free: read-only state
 dream          # costs two agent runs
+dream reset    # wipe memory and history, keep the config files
 ```
 
 A full run writes `dreaming/light/<day>.md`, `dreaming/deep/<day>.md`, the
