@@ -2,9 +2,9 @@
 
 Two pieces that give an OpenCode agent memory across sessions:
 
-1. **A plugin** that injects a memory file into the system prompt of every
+1. **A plugin** that injects memory files into the system prompt of every
    request, so the memory survives context compaction.
-2. **A nightly job** that writes that file from past sessions.
+2. **A nightly job** that writes those files from past sessions.
 
 `AGENTS.md` does not survive compaction. When a session gets long, OpenCode
 summarizes the conversation and the instructions file goes with it. A plugin
@@ -34,10 +34,10 @@ sh install.sh --enable   # install, then enable and start the 04:30 timer
 
 `install.sh` copies three scripts into `$BIN_DIR` (default `~/.local/bin`), two
 agents into `~/.config/opencode/agents`, two systemd user units, and creates
-`~/dreams` with `MEMORY.md`, `DREAMS.md`, an empty project list and a commented
-`dream-models` file. It rewrites the unit's `ExecStart` to the chosen `BIN_DIR`,
-and it never overwrites `MEMORY.md`, `DREAMS.md`, `dream-projects` or
-`dream-models`.
+`~/dreams` with `MEMORY.md`, an empty `projects/` tree, `DREAMS.md`, an empty
+project list and a commented `dream-models` file. It rewrites the unit's
+`ExecStart` to the chosen `BIN_DIR`, and it never overwrites `MEMORY.md`,
+`DREAMS.md`, `dream-projects`, `dream-models` or a project memory file.
 
 The deep pass leaves an audit trail: `dreaming/deep/<date>.md` lists each
 promoted fact with the light-report line that supports it, so a fact stays
@@ -55,17 +55,42 @@ If `opencode` is not on the systemd default `PATH`, write its directory to
 echo 'PATH=/opt/opencode/bin:/usr/local/bin:/usr/bin:/bin' > ~/.config/dream.env
 ```
 
-## What the plugin injects
+## Memory layout
 
-The content of `~/dreams/MEMORY.md`, without its top-level title, under a header
-saying the file comes from a nightly pass and may be stale. Override the path:
-
-```bash
-DREAM_MEMORY_FILE=~/notes/agent-memory.md
+```
+~/dreams/
+  MEMORY.md                        shared facts, injected in every session
+  projects/homelab/MEMORY.md       one project's facts, injected there only
+  projects/<name>/MEMORY.md
+  DREAMS.md                        the diary
+  dreaming/{light,deep}/<date>.md  staging and audit reports
+  .dreams/                         corpus and cursor, gitignored
 ```
 
-Nothing is injected when the file is missing, empty or unreadable. The hook runs
-on every request, so it fails silent instead of breaking the session.
+Only `.dreams/` is gitignored. `MEMORY.md`, `projects/` and `dreaming/` stay
+tracked, so a `$DREAM_HOME` git repo keeps a history of every promotion.
+
+## What the plugin injects
+
+Two files, read fresh on every request:
+
+| File | Content | Cut at |
+|---|---|---|
+| `~/dreams/MEMORY.md` | facts true in every project | 1 000 characters |
+| `~/dreams/projects/<name>/MEMORY.md` | facts about the current project | 3 000 characters |
+
+`<name>` is the base name of the project directory: `~/homelab` reads
+`projects/homelab/MEMORY.md`. The corpus uses the same tag, so a candidate
+lands in the file of the project it came from. OpenCode creates one plugin
+instance per project location, so the hook knows which project it serves; a
+worktree uses the name of its main repository.
+
+The block opens with a header saying the content comes from a nightly pass and
+may be stale. Top-level titles are dropped. A part that is missing, empty or
+unreadable contributes nothing: the hook runs on every request, so it fails
+silent instead of breaking the session. Move the whole tree with `DREAM_HOME`.
+
+Nothing is injected when both parts are empty.
 
 ## Privacy
 
@@ -82,8 +107,8 @@ characters, and the whole corpus is sent to whichever model `dream` runs.
   message with `[redacted:text:...]`, which makes the corpus useless.
 - For a private setup, set a local model in `~/.config/opencode/dream-models`
   (see below), or set `DREAM_HOME` on an encrypted volume and skip the timer.
-- The dream job is instructed never to write secrets into `MEMORY.md`, and the
-  plugin injects that file into every request. A secret that reaches it is
+- The dream job is instructed never to write secrets into a memory file, and the
+  plugin injects those files into every request. A secret that reaches one is
   re-sent on every turn.
 - Before the deep pass, `dream` commits `$DREAM_HOME` when it is a git repo, so
   a bad rewrite is one `git revert` away. The corpus is excluded from that
@@ -112,15 +137,18 @@ and that flag beats the agent's pinned model. Override the file path with
 
 ## Limits
 
-- 4 000 characters. Past that, the tail is dropped on a line boundary and the
-  block says how much was dropped. `dream-deep` is told to keep the file under
-  3 500 characters and to delete older entries to stay there, because a memory
-  file that only grows eventually loses its own tail.
-- The whole file is injected, not only the section for the current project. The
-  hook event carries no working directory, and guessing one from the server
-  process would be wrong.
-- The file is read on each request, never cached, so a nightly rewrite shows up
-  in the next turn at the cost of one small read.
+- Each part is cut on its own: 1 000 characters for shared memory, 3 000 for a
+  project file. Past that, the tail is dropped on a line boundary and the block
+  says how much was dropped.
+- `dream-deep` is told to keep the files under 900 and 2 800 characters, below
+  the cuts. It deletes older entries to stay there, because a memory file that
+  only grows eventually loses its own tail.
+- One project's memory cannot squeeze out another's: the files share no budget.
+- A run takes a lock on `$DREAM_HOME/.dreams/run.lock`. A second run exits at
+  once instead of interleaving writes, so the 04:30 timer cannot collide with a
+  manual run.
+- The files are read on each request, never cached, so a nightly rewrite shows
+  up in the next turn at the cost of two small reads.
 
 ## Commands
 
@@ -138,11 +166,13 @@ Requirements: `opencode` and `jq` on `PATH`, plus systemd for the timer.
 npm test
 ```
 
-Five hook assertions: the hook registers, a missing file injects nothing, an
-existing file injects one block, the title is dropped, an oversized file is
-truncated. Then the corpus checks: the dream's own sessions stay out, a labelled
-secret is redacted, a torn session export is skipped instead of fatal, and a git
-data directory gets a preimage commit before the deep pass.
+The plugin checks: the hook registers, missing files inject nothing, shared
+memory alone injects one block, the current project's file is appended after it
+while another project's stays out, an oversized file is truncated without the
+whole block growing, and titles are dropped. Then the corpus checks: the dream's
+own sessions stay out, a labelled secret is redacted, a torn session export is
+skipped instead of fatal, and a git data directory gets a preimage commit before
+the deep pass.
 
 ## Licence
 

@@ -48,6 +48,7 @@ Rules:
 - Ignore project documentation that already lives in the repository.
 - Never record secrets, tokens, passwords, API keys, or file contents that
   look like credentials. If the corpus holds one, do not quote it.
-- Skip anything already written in `MEMORY.md` or in a previous light file.
+- Skip anything already written in `MEMORY.md`, in `projects/<project>/MEMORY.md`
+  or in a previous light file.
 - If the corpus is empty or holds nothing durable, write only the heading and
   the line `- No candidates today.`

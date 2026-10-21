@@ -23,7 +23,7 @@ SRC=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)/dream
 command -v opencode >/dev/null || { echo "install: opencode is not on PATH" >&2; exit 1; }
 command -v jq >/dev/null || { echo "install: jq is not on PATH" >&2; exit 1; }
 
-mkdir -p "$BIN" "$AGENTS" "$UNITS" "$(dirname "$LIST")" "$HOME_DREAM/dreaming/light" "$HOME_DREAM/dreaming/deep" "$HOME_DREAM/.dreams/session-corpus"
+mkdir -p "$BIN" "$AGENTS" "$UNITS" "$(dirname "$LIST")" "$HOME_DREAM/dreaming/light" "$HOME_DREAM/dreaming/deep" "$HOME_DREAM/.dreams/session-corpus" "$HOME_DREAM/projects"
 
 for f in dream dream-corpus dream-status; do
   install -m 755 "$SRC/$f" "$BIN/$f"
@@ -38,17 +38,10 @@ done
 sed -i "s|^ExecStart=.*|ExecStart=$BIN/dream|" "$UNITS/dream.service"
 
 [ -f "$HOME_DREAM/MEMORY.md" ] || cat > "$HOME_DREAM/MEMORY.md" <<'EOF'
-# Memory
+# Shared memory
 
-Durable facts and decisions, promoted by the nightly dream job from
-`.dreams/session-corpus/`. One fact per line, grouped by project, no chronology.
-The diary is in [DREAMS.md](DREAMS.md).
-
-Rules the dream must respect here:
-
-- Never record a credential, a token, a password or a line of `.env`.
-- When a fact here becomes false, delete it. A wrong line costs more than a
-  missing one.
+Facts true in every project, one per line. Project facts live in
+`projects/<project>/MEMORY.md`.
 EOF
 
 [ -f "$HOME_DREAM/DREAMS.md" ] || cat > "$HOME_DREAM/DREAMS.md" <<'EOF'
@@ -87,11 +80,13 @@ echo "installed:"
 echo "  $BIN/dream{,-corpus,-status}"
 echo "  $AGENTS/dream-{light,deep}.md"
 echo "  $UNITS/dream.{service,timer}"
-echo "  $HOME_DREAM"
+echo "  $HOME_DREAM (MEMORY.md, projects/, dreaming/, DREAMS.md)"
 
 if [ "$ENABLE" -eq 1 ]; then
   systemctl --user enable --now dream.timer
   echo "timer: enabled (daily 04:30)"
+elif systemctl --user is-enabled dream.timer >/dev/null 2>&1; then
+  echo "timer: already enabled (daily 04:30)"
 else
   echo "timer: disabled. Enable it when the output looks right:"
   echo "  systemctl --user enable --now dream.timer"

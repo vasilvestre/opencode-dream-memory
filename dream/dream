@@ -5,12 +5,20 @@
 #   dream-deep    promotes them into MEMORY.md and writes DREAMS.md
 # Everything is written under $DREAM_HOME (default ~/dreams), never in the
 # projects themselves: this is the agent's memory of the user, not project docs.
+# Shared facts land in MEMORY.md, project facts in projects/<name>/MEMORY.md.
 # Costs two agent runs per invocation.
 set -eu
 
 root="${DREAM_HOME:-$HOME/dreams}"
 list="${DREAM_PROJECTS:-$HOME/.config/opencode/dream-projects}"
 day=$(date +%F)
+# One run at a time: two overlapping passes interleave writes and commits, and
+# the 04:30 timer can fire while a manual run still spends its two models.
+mkdir -p "$root/.dreams"
+if command -v flock >/dev/null 2>&1; then
+  exec 9>"$root/.dreams/run.lock"
+  flock -n 9 || { echo "dream: another run is in progress" >&2; exit 0; }
+fi
 command -v opencode >/dev/null || { echo "dream: opencode not on PATH" >&2; exit 1; }
 [ -r "$list" ] || { echo "dream: no project list at $list" >&2; exit 1; }
 
@@ -24,6 +32,19 @@ corpus="$root/.dreams/session-corpus/$day.txt"
 
 mkdir -p "$root/dreaming/light" "$root/dreaming/deep"
 cd "$root"
+
+# One memory file per tracked project, so the deep pass only ever edits files
+# that exist. Named after the project directory, the same tag dream-corpus
+# writes into the corpus.
+while IFS= read -r project; do
+  case $project in ''|\#*) continue ;; esac
+  name=$(basename "$project")
+  case $name in ''|.|..) continue ;; esac
+  memory="$root/projects/$name/MEMORY.md"
+  [ -f "$memory" ] && continue
+  mkdir -p "$(dirname "$memory")"
+  printf '# %s\n' "$name" > "$memory"
+done < "$list"
 
 # Per-stage model choice: "<stage> <model> [<model> ...]", first that works wins.
 # The light pass reads raw session text, so this is where a local or paid

@@ -21,13 +21,20 @@ last_lines=0
 n_light=$(find "$root/dreaming/light" -name '*.md' 2>/dev/null | wc -l)
 n_deep=$(find "$root/dreaming/deep" -name '*.md' 2>/dev/null | wc -l)
 n_mem=$(grep -c '.' "$root/MEMORY.md" 2>/dev/null || true); [ -n "$n_mem" ] || n_mem=0
+mem_files=$(find "$root/projects" -name MEMORY.md 2>/dev/null | sort)
+n_proj=$(printf '%s\n' "$mem_files" | grep -c . 2>/dev/null || true); [ -n "$n_proj" ] || n_proj=0
 n_dreams=$(grep -c '^\*[A-Z]' "$root/DREAMS.md" 2>/dev/null || true); [ -n "$n_dreams" ] || n_dreams=0
 today=$([ -f "$root/dreaming/light/$day.md" ] && echo oui || echo non)
 
 echo "corpus: $n_corpus jour(s), dernier ${last_corpus:-aucun} ($last_lines lignes)"
 echo "light:  $n_light fichier(s), aujourd'hui: $today"
 echo "deep:   $n_deep fichier(s)"
-echo "MEMORY: $n_mem ligne(s) non vides"
+echo "MEMORY: $n_mem ligne(s) partagées, $n_proj projet(s)"
+mem_report() { [ -f "$1" ] && printf '  %6s  %s\n' "$(wc -m < "$1" | tr -d ' ')" "${1#"$root"/}"; }
+mem_report "$root/MEMORY.md"
+while IFS= read -r f; do mem_report "$f"; done <<EOF
+$mem_files
+EOF
 echo "DREAMS: $n_dreams entrée(s)"
 echo
 echo "projets suivis:"
