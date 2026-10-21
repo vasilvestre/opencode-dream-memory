@@ -1,0 +1,52 @@
+#!/bin/sh
+# Build the dream corpus: one line per message, for each session touched in the
+# last 24 hours, in every listed project. Deterministic: no model, no cost.
+# Output: $DREAM_HOME/.dreams/session-corpus/YYYY-MM-DD.txt (default ~/dreams)
+set -eu
+
+root="${DREAM_HOME:-$HOME/dreams}"
+list="${DREAM_PROJECTS:-$HOME/.config/opencode/dream-projects}"
+day=$(date +%F)
+now=$(( $(date +%s) * 1000 ))
+# Incremental: start where the last successful run stopped, never earlier than
+# 24h ago. Without this, a session spanning midnight lands in two corpora.
+state="$root/.dreams/last-run"
+last=0
+[ -r "$state" ] && last=$(cat "$state" 2>/dev/null || echo 0)
+cutoff=$(( now - 86400000 ))
+[ "$last" -gt "$cutoff" ] && cutoff=$last
+command -v opencode >/dev/null || { echo "dream-corpus: opencode not on PATH" >&2; exit 1; }
+
+out="$root/.dreams/session-corpus/$day.txt"
+mkdir -p "$(dirname "$out")"
+# truncate on the first run of the day, append afterwards so a later run keeps
+# the earlier slice. shortcut: a retry after a failed run re-appends the same
+# messages; dedupe with sort -u if that ever shows up.
+[ -f "$out" ] || : > "$out"
+
+while IFS= read -r project; do
+  case $project in ''|\#*) continue ;; esac
+  [ -d "$project/.git" ] || { echo "dream-corpus: skip $project (not a git repo)" >&2; continue; }
+  name=$(basename "$project")
+  cd "$project"
+
+  before=$(wc -l < "$out")
+  opencode session list --format json --max-count 100 2>/dev/null |
+    jq -r --argjson cutoff "$cutoff" '.[] | select(.updated >= $cutoff) | .id' |
+    while IFS= read -r sid; do
+      [ -n "$sid" ] || continue
+      tmp=$(mktemp)
+      if opencode session export "$sid" > "$tmp" 2>/dev/null; then
+        jq -r --arg name "$name" '.messages[] |
+          if .type == "user" then
+            "[" + $name + "] User: " + ((.text // "") | gsub("\n"; " ") | .[0:400])
+          elif .type == "assistant" then
+            (.content[]? | select(.type == "text") | .text | gsub("\n"; " ") | .[0:400] | "[" + $name + "] Assistant: " + .)
+          else empty end' "$tmp" >> "$out"
+      fi
+      rm -f "$tmp"
+    done
+  echo "dream-corpus: $name +$(( $(wc -l < "$out") - before )) lignes"
+done < "$list"
+
+echo "dream-corpus: $out ($(wc -l < "$out") lignes)"

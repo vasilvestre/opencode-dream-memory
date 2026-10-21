@@ -1,0 +1,34 @@
+#!/bin/sh
+# One screen of state for the dream job. Read-only, no model, no cost.
+set -eu
+
+root="${DREAM_HOME:-$HOME/dreams}"
+list="${DREAM_PROJECTS:-$HOME/.config/opencode/dream-projects}"
+day=$(date +%F)
+
+timer=$(systemctl --user is-active dream.timer 2>/dev/null || true)
+[ -n "$timer" ] || timer=inactive
+next=$(systemctl --user list-timers dream.timer --no-legend 2>/dev/null | awk 'NR==1 {print $1" "$2" "$3}' || true)
+echo "root:  $root"
+echo "timer: $timer${next:+ (next $next)}"
+
+corpus_dir="$root/.dreams/session-corpus"
+n_corpus=$(find "$corpus_dir" -name '*.txt' 2>/dev/null | wc -l)
+last_corpus=$(ls -1 "$corpus_dir" 2>/dev/null | tail -1 || true)
+last_lines=0
+[ -n "$last_corpus" ] && last_lines=$(wc -l < "$corpus_dir/$last_corpus")
+
+n_light=$(find "$root/dreaming/light" -name '*.md' 2>/dev/null | wc -l)
+n_deep=$(find "$root/dreaming/deep" -name '*.md' 2>/dev/null | wc -l)
+n_mem=$(grep -c '.' "$root/MEMORY.md" 2>/dev/null || true); [ -n "$n_mem" ] || n_mem=0
+n_dreams=$(grep -c '^\*[A-Z]' "$root/DREAMS.md" 2>/dev/null || true); [ -n "$n_dreams" ] || n_dreams=0
+today=$([ -f "$root/dreaming/light/$day.md" ] && echo oui || echo non)
+
+echo "corpus: $n_corpus jour(s), dernier ${last_corpus:-aucun} ($last_lines lignes)"
+echo "light:  $n_light fichier(s), aujourd'hui: $today"
+echo "deep:   $n_deep fichier(s)"
+echo "MEMORY: $n_mem ligne(s) non vides"
+echo "DREAMS: $n_dreams entrée(s)"
+echo
+echo "projets suivis:"
+sed -e 's/#.*//' -e '/^[[:space:]]*$/d' "$list" 2>/dev/null | sed 's/^/  /' || echo "  (aucun)"

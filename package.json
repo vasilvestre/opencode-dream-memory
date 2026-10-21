@@ -30,6 +30,8 @@
   },
   "files": [
     ".opencode/",
+    "dream/",
+    "install.sh",
     "LICENSE"
   ],
   "publishConfig": {

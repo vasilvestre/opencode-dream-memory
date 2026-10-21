@@ -1,0 +1,49 @@
+#!/bin/sh
+# Nightly session-memory pass, in three stages:
+#   dream-corpus  builds the raw corpus (no model)
+#   dream-light   stages candidate memories with evidence
+#   dream-deep    promotes them into MEMORY.md and writes DREAMS.md
+# Everything is written under $DREAM_HOME (default ~/dreams), never in the
+# projects themselves: this is the agent's memory of the user, not project docs.
+# Costs two agent runs per invocation.
+set -eu
+
+root="${DREAM_HOME:-$HOME/dreams}"
+list="${DREAM_PROJECTS:-$HOME/.config/opencode/dream-projects}"
+day=$(date +%F)
+command -v opencode >/dev/null || { echo "dream: opencode not on PATH" >&2; exit 1; }
+[ -r "$list" ] || { echo "dream: no project list at $list" >&2; exit 1; }
+
+"$HOME/.local/bin/dream-corpus"
+
+corpus="$root/.dreams/session-corpus/$day.txt"
+[ -s "$corpus" ] || { echo "dream: empty corpus, nothing to do" >&2; exit 0; }
+
+mkdir -p "$root/dreaming/light" "$root/dreaming/deep"
+cd "$root"
+
+# --agent does not carry the model: a session keeps its own selected model, so
+# pass -m explicitly, and fall back when a free endpoint is down.
+run_agent() {
+  agent=$1; prompt=$2; title=$3
+  for model in opencode/glm-5.3-flash-free opencode/deepseek-v4.1-flash-free opencode/nemotron-3-ultra-free; do
+    if opencode run --agent "$agent" -m "$model" --title "$title" "$prompt"; then
+      return 0
+    fi
+    echo "dream: $model unavailable, trying the next one" >&2
+  done
+  echo "dream: $agent failed on every model" >&2
+  return 1
+}
+
+echo "dream: light"
+run_agent dream-light \
+  "Stage today's candidates from .dreams/session-corpus/$day.txt." "light $day"
+
+echo "dream: deep"
+if run_agent dream-deep \
+  "Promote today's candidates and write the diary entry for $day." "deep $day"; then
+  # Advance the cursor only after both passes succeeded, so a failed run is
+  # retried on the same slice instead of losing it.
+  date +%s%3N > "$root/.dreams/last-run"
+fi

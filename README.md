@@ -54,6 +54,33 @@ npm test
 Five assertions: the hook registers, a missing file injects nothing, an existing
 file injects one block, the title is dropped, an oversized file is truncated.
 
+## The dream job
+
+The repo also ships the nightly job that writes the memory file it injects.
+
+```bash
+sh install.sh            # install, timer stays disabled
+sh install.sh --enable   # install, then enable and start the 04:30 timer
+```
+
+It copies three scripts into `~/.local/bin`, two agents into
+`~/.config/opencode/agents`, two systemd user units, and creates `~/dreams`
+with `MEMORY.md`, `DREAMS.md` and an empty project list. It never overwrites
+`MEMORY.md`, `DREAMS.md` or `dream-projects`, so it is safe to re-run.
+
+Enable the timer only after reading a manual run: `dream` spends two agent runs
+per invocation. The install script leaves it off on purpose, because a
+curl-to-shell install cannot ask a question and a nightly job that spends money
+should never start by default.
+
+| Command | What it does |
+|---|---|
+| `dream` | builds the corpus, then the light and deep passes |
+| `dream-corpus` | only the corpus, no model, no cost |
+| `dream-status` | one screen of state, read-only |
+
+Requirements: `opencode` and `jq` on `PATH`, plus systemd for the timer.
+
 ## Licence
 
 MIT.

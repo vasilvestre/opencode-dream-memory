@@ -1,0 +1,7 @@
+[Unit]
+Description=Consolidate OpenCode sessions into each project's docs/memoire.md
+
+[Service]
+Type=oneshot
+Environment="PATH=/home/vsilvestre/.openclaw/tools/node-v24.21.0/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/home/vsilvestre/.local/bin/dream
