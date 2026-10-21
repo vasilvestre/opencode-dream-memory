@@ -155,8 +155,11 @@ and that flag beats the agent's pinned model. Override the file path with
 | Command | What it does |
 |---|---|
 | `dream` | builds the corpus, then the light and deep passes |
-| `dream-corpus` | only the corpus, no model, no cost |
-| `dream-status` | one screen of state, read-only |
+| `dream corpus` | only the corpus, no model, no cost |
+| `dream status` | one screen of state, read-only |
+
+`dream-corpus` and `dream-status` stay installed as standalone commands; they do
+the same thing as the two subcommands.
 
 Requirements: `opencode` and `jq` on `PATH`, plus systemd for the timer.
 

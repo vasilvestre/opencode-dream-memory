@@ -1,13 +1,25 @@
 #!/bin/sh
-# Nightly session-memory pass, in three stages:
-#   dream-corpus  builds the raw corpus (no model)
-#   dream-light   stages candidate memories with evidence
-#   dream-deep    promotes them into MEMORY.md and writes DREAMS.md
+# Nightly session-memory pass.
+#
+# Usage: dream          corpus, then the light and deep passes (two agent runs)
+#        dream corpus   corpus only, no model, no cost
+#        dream status   one screen of state, read-only
+#
 # Everything is written under $DREAM_HOME (default ~/dreams), never in the
 # projects themselves: this is the agent's memory of the user, not project docs.
 # Shared facts land in MEMORY.md, project facts in projects/<name>/MEMORY.md.
-# Costs two agent runs per invocation.
 set -eu
+
+# Resolve next to this script, so a custom BIN_DIR works without a PATH.
+here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+
+# One entry point. The standalone scripts stay installed and delegated to.
+case "${1:-}" in
+  status) exec "$here/dream-status" ;;
+  corpus) exec "$here/dream-corpus" ;;
+  '') ;;
+  *) echo "dream: unknown command '$1' (try: dream, dream status, dream corpus)" >&2; exit 2 ;;
+esac
 
 root="${DREAM_HOME:-$HOME/dreams}"
 list="${DREAM_PROJECTS:-$HOME/.config/opencode/dream-projects}"
@@ -22,8 +34,6 @@ fi
 command -v opencode >/dev/null || { echo "dream: opencode not on PATH" >&2; exit 1; }
 [ -r "$list" ] || { echo "dream: no project list at $list" >&2; exit 1; }
 
-# Resolve next to this script, so a custom BIN_DIR works without a PATH.
-here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 corpus_bin="${DREAM_CORPUS_BIN:-$here/dream-corpus}"
 "$corpus_bin"
 

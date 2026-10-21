@@ -79,9 +79,9 @@ regression there produces no error, just lost memory.
 ## Testing the job by hand
 
 ```bash
-dream-corpus            # free: builds the corpus only
-dream-status            # free: read-only state
-dream                   # costs two agent runs
+dream corpus   # free: builds the corpus only
+dream status   # free: read-only state
+dream          # costs two agent runs
 ```
 
 A full run writes `dreaming/light/<day>.md`, `dreaming/deep/<day>.md`, the
