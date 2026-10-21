@@ -23,7 +23,7 @@ SRC=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)/dream
 command -v opencode >/dev/null || { echo "install: opencode is not on PATH" >&2; exit 1; }
 command -v jq >/dev/null || { echo "install: jq is not on PATH" >&2; exit 1; }
 
-mkdir -p "$BIN" "$AGENTS" "$UNITS" "$HOME_DREAM/dreaming/light" "$HOME_DREAM/dreaming/deep" "$HOME_DREAM/.dreams/session-corpus"
+mkdir -p "$BIN" "$AGENTS" "$UNITS" "$(dirname "$LIST")" "$HOME_DREAM/dreaming/light" "$HOME_DREAM/dreaming/deep" "$HOME_DREAM/.dreams/session-corpus"
 
 for f in dream dream-corpus dream-status; do
   install -m 755 "$SRC/$f" "$BIN/$f"
