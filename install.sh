@@ -1,8 +1,10 @@
 #!/bin/sh
-# Install the dream job: corpus builder, light/deep agents, systemd units.
+# Install the dream job and its plugin: corpus builder, light/deep agents,
+# systemd units, memory home.
 #
-#   sh install.sh           # install everything, leave the timer disabled
-#   sh install.sh --enable  # install, then enable and start the nightly timer
+#   curl -fsSL https://raw.githubusercontent.com/vasilvestre/opencode-dream-memory/main/install.sh | sh
+#   sh install.sh            # same thing from a clone, timer disabled
+#   sh install.sh --enable   # install, then enable and start the nightly timer
 #
 # Never overwrites MEMORY.md, DREAMS.md or dream-projects: those hold your data
 # and your choices. Safe to re-run after a pull.
@@ -13,17 +15,36 @@ ENABLE=0
 
 BIN="${BIN_DIR:-$HOME/.local/bin}"
 AGENTS="${AGENTS_DIR:-$HOME/.config/opencode/agents}"
+PLUGINS="${PLUGINS_DIR:-$HOME/.config/opencode/plugins}"
 UNITS="${UNITS_DIR:-$HOME/.config/systemd/user}"
 HOME_DREAM="${DREAM_HOME:-$HOME/dreams}"
 LIST="$HOME/.config/opencode/dream-projects"
 MODELS="$HOME/.config/opencode/dream-models"
 
-SRC=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)/dream
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 
 command -v opencode >/dev/null || { echo "install: opencode is not on PATH" >&2; exit 1; }
 command -v jq >/dev/null || { echo "install: jq is not on PATH" >&2; exit 1; }
 
-mkdir -p "$BIN" "$AGENTS" "$UNITS" "$(dirname "$LIST")" "$HOME_DREAM/dreaming/light" "$HOME_DREAM/dreaming/deep" "$HOME_DREAM/.dreams/session-corpus" "$HOME_DREAM/projects"
+# A piped install has no dream/ next to the script, so fetch the archive.
+if [ ! -d "$ROOT/dream" ]; then
+  url=https://github.com/vasilvestre/opencode-dream-memory/archive/refs/heads/main.tar.gz
+  tmp=$(mktemp -d)
+  trap 'rm -rf "$tmp"' EXIT
+  echo "install: downloading $url"
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL "$url" | tar xz -C "$tmp"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -qO- "$url" | tar xz -C "$tmp"
+  else
+    echo "install: curl or wget is required to download the archive" >&2
+    exit 1
+  fi
+  ROOT=$tmp/opencode-dream-memory-main
+fi
+SRC=$ROOT/dream
+
+mkdir -p "$BIN" "$AGENTS" "$UNITS" "$PLUGINS" "$(dirname "$LIST")" "$HOME_DREAM/dreaming/light" "$HOME_DREAM/dreaming/deep" "$HOME_DREAM/.dreams/session-corpus" "$HOME_DREAM/projects"
 
 for f in dream dream-corpus dream-status; do
   install -m 755 "$SRC/$f" "$BIN/$f"
@@ -31,6 +52,10 @@ done
 for f in dream-light.md dream-deep.md; do
   install -m 644 "$SRC/agents/$f" "$AGENTS/$f"
 done
+# One copy only: a second file with the same id makes OpenCode drop every plugin.
+# An existing symlink stays, so a developer keeps editing the file they cloned.
+[ -L "$PLUGINS/dream-memory.js" ] ||
+  install -m 644 "$ROOT/.opencode/plugins/dream-memory.js" "$PLUGINS/dream-memory.js"
 for f in dream.service dream.timer; do
   install -m 644 "$SRC/systemd/$f" "$UNITS/$f"
 done
@@ -79,6 +104,7 @@ systemctl --user daemon-reload 2>/dev/null || true
 echo "installed:"
 echo "  $BIN/dream{,-corpus,-status}"
 echo "  $AGENTS/dream-{light,deep}.md"
+echo "  $PLUGINS/dream-memory.js"
 echo "  $UNITS/dream.{service,timer}"
 echo "  $HOME_DREAM (MEMORY.md, projects/, dreaming/, DREAMS.md)"
 

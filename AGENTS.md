@@ -27,7 +27,7 @@ writes what the plugin reads.
 | `dream/systemd/` | the 04:30 timer |
 | `scripts/check-plugin.mjs` | assertions on the hook: scope, isolation, budget |
 | `scripts/check-corpus.sh` | corpus filter, redaction, torn export, preimage |
-| `install.sh` | copies everything into a home directory |
+| `install.sh` | installs the plugin and the job; downloads the archive when piped |
 
 ## Hard rules
 
@@ -60,8 +60,12 @@ writes what the plugin reads.
 - **The install script never overwrites user data.** `MEMORY.md`, `DREAMS.md`,
   `dream-projects` and every `projects/<name>/MEMORY.md` are created only when
   missing. So is `dream-models`.
-- **The timer stays off by default.** `--enable` exists, and a curl-to-shell
-  install must not start a job that spends money.
+- **The timer stays off by default.** `--enable` exists, and a one-line install
+  must not start a job that spends money.
+- **`install.sh` must stay pipeable.** `curl ... | sh` gives it no directory, so
+  `$ROOT/dream` is missing and it downloads the archive into a temp directory
+  instead. Keep the `trap` that removes that directory, and keep the plugin copy
+  skipping an existing symlink.
 
 ## Before you commit
 

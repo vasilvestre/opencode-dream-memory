@@ -10,49 +10,70 @@ Two pieces that give an OpenCode agent memory across sessions:
 summarizes the conversation and the instructions file goes with it. A plugin
 hook runs on every agent-loop request, so the same block is re-sent each turn.
 
-## Install the plugin
+## Install
 
-Until it is published on npm, use the discovery directory. Do **not** list the
-file path in `plugins` in `opencode.jsonc`: OpenCode warns that a configured
-plugin path must be a directory, and a path entry placed next to a discovered
-copy loads the plugin twice. Two instances with the same id make OpenCode drop
-every plugin.
+Requirements: `opencode` and `jq` on `PATH`, `curl` or `wget` to download, and
+systemd for the timer.
 
 ```bash
-mkdir -p ~/.config/opencode/plugins
-ln -sf "$PWD/.opencode/plugins/dream-memory.js" ~/.config/opencode/plugins/dream-memory.js
+curl -fsSL https://raw.githubusercontent.com/vasilvestre/opencode-dream-memory/main/install.sh | sh
 ```
 
-Restart the service to load it: `opencode service restart`.
-
-## Install the dream job
+One command installs both pieces. The plugin lands in
+`~/.config/opencode/plugins`, the job in `$BIN_DIR` (default `~/.local/bin`)
+next to its two agents and two systemd user units. Then restart the service to
+load the plugin:
 
 ```bash
-sh install.sh            # install, timer stays disabled
-sh install.sh --enable   # install, then enable and start the 04:30 timer
+opencode service restart
 ```
 
-`install.sh` copies three scripts into `$BIN_DIR` (default `~/.local/bin`), two
-agents into `~/.config/opencode/agents`, two systemd user units, and creates
-`~/dreams` with `MEMORY.md`, an empty `projects/` tree, `DREAMS.md`, an empty
-project list and a commented `dream-models` file. It rewrites the unit's
-`ExecStart` to the chosen `BIN_DIR`, and it never overwrites `MEMORY.md`,
-`DREAMS.md`, `dream-projects`, `dream-models` or a project memory file.
+Do **not** also list the plugin file path in `plugins` in `opencode.jsonc`:
+OpenCode warns that a configured plugin path must be a directory, and a path
+entry placed next to a discovered copy loads the plugin twice. Two instances
+with the same id make OpenCode drop every plugin.
+
+The installer leaves the nightly timer disabled on purpose. `dream` spends two
+agent runs per invocation, and a one-line install cannot ask a question, so a
+job that spends money must not start by itself. Enable it once a manual run
+looks right, with `-s --` passing the flag to the script:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vasilvestre/opencode-dream-memory/main/install.sh | sh -s -- --enable
+```
+
+The installer also creates `~/dreams` with `MEMORY.md`, an empty `projects/`
+tree, `DREAMS.md`, an empty project list and a commented `dream-models` file. It
+rewrites the unit's `ExecStart` to the chosen `BIN_DIR`, and it never overwrites
+`MEMORY.md`, `DREAMS.md`, `dream-projects`, `dream-models` or a project memory
+file. An existing symlink at
+`~/.config/opencode/plugins/dream-memory.js` stays as it is, so a clone that
+symlinks its own copy keeps working.
 
 The deep pass leaves an audit trail: `dreaming/deep/<date>.md` lists each
 promoted fact with the light-report line that supports it, so a fact stays
 checkable after the corpus is gone.
-
-Enable the timer only after reading a manual run. `dream` spends two agent runs
-per invocation, and the script leaves the timer off on purpose: a curl-to-shell
-install cannot ask a question, and a nightly job that spends money must not
-start by default.
 
 If `opencode` is not on the systemd default `PATH`, write its directory to
 `~/.config/dream.env`, which the unit reads when present:
 
 ```bash
 echo 'PATH=/opt/opencode/bin:/usr/local/bin:/usr/bin:/bin' > ~/.config/dream.env
+```
+
+### From a clone instead
+
+```bash
+git clone https://github.com/vasilvestre/opencode-dream-memory
+cd opencode-dream-memory
+sh install.sh            # install, timer stays disabled
+sh install.sh --enable   # install, then enable and start the 04:30 timer
+```
+
+The clone itself is what to symlink when you want the plugin to track edits:
+
+```bash
+ln -sf "$PWD/.opencode/plugins/dream-memory.js" ~/.config/opencode/plugins/dream-memory.js
 ```
 
 ## Memory layout
@@ -166,8 +187,6 @@ content one `git checkout` away.
 
 `dream-corpus` and `dream-status` stay installed as standalone commands; they do
 the same thing as the two subcommands.
-
-Requirements: `opencode` and `jq` on `PATH`, plus systemd for the timer.
 
 ## Test
 
