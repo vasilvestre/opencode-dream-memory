@@ -10,14 +10,13 @@ root="${DREAM_HOME:-$HOME/dreams}"
 list="${DREAM_PROJECTS:-$HOME/.config/opencode/dream-projects}"
 day=$(date +%F)
 now=$(( $(date +%s) * 1000 ))
-# Incremental: start where the last successful run stopped, never earlier than
-# 24h ago. Without this, a session spanning midnight lands in two corpora.
+# Incremental, per project: each project ingests sessions since its own last
+# successful run, never earlier than 24h ago. A project with no cursor is new,
+# so it ingests its full 24h history instead of being skipped by another
+# project's cursor. Without this, adding a project after a run silently drops
+# its past sessions.
 state="$root/.dreams/last-run"
-last=0
-[ -r "$state" ] && last=$(cat "$state" 2>/dev/null || true)
-case $last in ''|*[!0-9]*) last=0 ;; esac
-cutoff=$(( now - 86400000 ))
-[ "$last" -gt "$cutoff" ] && cutoff=$last
+[ -d "$state" ] || { rm -f "$state"; mkdir -p "$state"; }
 command -v opencode >/dev/null || { echo "dream-corpus: opencode not on PATH" >&2; exit 1; }
 
 out="$root/.dreams/session-corpus/$day.txt"
@@ -46,6 +45,11 @@ while IFS= read -r project; do
   case $project in ''|\#*) continue ;; esac
   [ -d "$project/.git" ] || { echo "dream-corpus: skip $project (not a git repo)" >&2; continue; }
   name=$(basename "$project")
+  last=0
+  [ -r "$state/$name" ] && last=$(cat "$state/$name" 2>/dev/null || true)
+  case $last in ''|*[!0-9]*) last=0 ;; esac
+  cutoff=$(( now - 86400000 ))
+  [ "$last" -gt "$cutoff" ] && cutoff=$last
   cd "$project"
 
   before=$(wc -l < "$out")

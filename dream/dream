@@ -143,7 +143,16 @@ fi
 echo "dream: deep"
 if run_agent dream-deep \
   "Promote today's candidates and write the diary entry for $day." "deep $day"; then
-  # Advance the cursor only after both passes succeeded, so a failed run is
-  # retried on the same slice instead of losing it.
-  date +%s%3N > "$root/.dreams/last-run"
+  # Advance each project's cursor only after both passes succeeded, so a failed
+  # run is retried on the same slice instead of losing it. A project without a
+  # git repo is skipped by dream-corpus, so it keeps a zero cursor and its full
+  # history is backfilled the first time it becomes a git repo.
+  now_ms=$(date +%s%3N)
+  mkdir -p "$root/.dreams/last-run"
+  while IFS= read -r project; do
+    case $project in ''|\#*) continue ;; esac
+    [ -d "$project/.git" ] || continue
+    name=$(basename "$project")
+    printf '%s\n' "$now_ms" > "$root/.dreams/last-run/$name"
+  done < "$list"
 fi

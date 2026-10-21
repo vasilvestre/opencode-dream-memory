@@ -42,6 +42,46 @@ has 'Assistant: hello'
 grep -Fq 'unreadable export' "$root/err" ||
   { echo "check-corpus: a broken export must be skipped, not fatal" >&2; exit 1; }
 
+# Per-project cursor: adding a project after a run must backfill its history,
+# while an already-run project must not re-ingest. One global cursor used to
+# skip the new project's older sessions.
+pc="$root/pc"
+mkdir -p "$pc/home" "$pc/pa/.git" "$pc/pb/.git"
+cat > "$pc/opencode" <<'EOF'
+#!/bin/sh
+now=$(( $(date +%s) * 1000 ))
+case $1/$2 in
+  session/list)
+    case $PWD in
+      */pa) printf '%s\n' "[{\"id\":\"pa-old\",\"updated\":$((now - 10*3600000))},{\"id\":\"pa-new\",\"updated\":$((now - 1*3600000))}]" ;;
+      */pb) printf '%s\n' "[{\"id\":\"pb-old\",\"updated\":$((now - 10*3600000))}]" ;;
+    esac
+    ;;
+  session/export)
+    case $3 in
+      pa-old) printf '%s\n' '{"info":{"agent":"build"},"messages":[{"type":"user","text":"old pa line"}]}' ;;
+      pa-new) printf '%s\n' '{"info":{"agent":"build"},"messages":[{"type":"user","text":"new pa line"}]}' ;;
+      pb-old) printf '%s\n' '{"info":{"agent":"build"},"messages":[{"type":"user","text":"old pb line"}]}' ;;
+    esac
+    ;;
+esac
+EOF
+chmod +x "$pc/opencode"
+pccorpus="$pc/home/.dreams/session-corpus/$(date +%F).txt"
+printf '%s\n' "$pc/pa" > "$pc/projects"
+PATH="$pc:$PATH" DREAM_HOME="$pc/home" DREAM_PROJECTS="$pc/projects" \
+  "$repo/dream/dream-corpus" >/dev/null 2>&1
+[ "$(wc -l < "$pccorpus")" = 2 ] || { echo "check-corpus: first run should ingest 2 lines" >&2; exit 1; }
+mkdir -p "$pc/home/.dreams/last-run"
+date +%s%3N > "$pc/home/.dreams/last-run/pa"
+printf '%s\n' "$pc/pa" "$pc/pb" > "$pc/projects"
+PATH="$pc:$PATH" DREAM_HOME="$pc/home" DREAM_PROJECTS="$pc/projects" \
+  "$repo/dream/dream-corpus" >/dev/null 2>&1
+[ "$(grep -c 'old pa line' "$pccorpus")" = 1 ] ||
+  { echo "check-corpus: an already-run project re-ingested its history" >&2; exit 1; }
+[ "$(grep -c 'old pb line' "$pccorpus")" = 1 ] ||
+  { echo "check-corpus: a newly added project's history was skipped" >&2; exit 1; }
+
 # Preimage: a git data directory gets a commit before the deep pass.
 data="$root/data"
 mkdir -p "$data/dreaming/light"
