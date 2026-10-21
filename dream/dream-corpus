@@ -1,6 +1,8 @@
 #!/bin/sh
 # Build the dream corpus: one line per message, for each session touched in the
 # last 24 hours, in every listed project. Deterministic: no model, no cost.
+# The dream's own runs are skipped: their output must not become tomorrow's
+# source. Labelled secrets are redacted on the way in.
 # Output: $DREAM_HOME/.dreams/session-corpus/YYYY-MM-DD.txt (default ~/dreams)
 set -eu
 
@@ -25,6 +27,21 @@ mkdir -p "$(dirname "$out")"
 # messages; dedupe with sort -u if that ever shows up.
 [ -f "$out" ] || : > "$out"
 
+# One line per message. A labelled secret never leaves the machine; a bare key
+# with no label still gets through, so this is a net, not a guarantee.
+filter='
+def clean:
+  gsub("\n"; " ")
+  | gsub("(?i)(?<k>(api[_-]?key|token|password|passwd|secret|bearer)[[:space:]]*[:=][[:space:]]*)[^[:space:]]+"; "\(.k)[redacted]")
+  | .[0:400];
+.messages[] |
+  if .type == "user" then
+    "[" + $name + "] User: " + (.text // "" | clean)
+  elif .type == "assistant" then
+    (.content[]? | select(.type == "text") | .text | clean | "[" + $name + "] Assistant: " + .)
+  else empty end
+'
+
 while IFS= read -r project; do
   case $project in ''|\#*) continue ;; esac
   [ -d "$project/.git" ] || { echo "dream-corpus: skip $project (not a git repo)" >&2; continue; }
@@ -38,12 +55,13 @@ while IFS= read -r project; do
       [ -n "$sid" ] || continue
       tmp=$(mktemp)
       if opencode session export "$sid" > "$tmp" 2>/dev/null; then
-        jq -r --arg name "$name" '.messages[] |
-          if .type == "user" then
-            "[" + $name + "] User: " + ((.text // "") | gsub("\n"; " ") | .[0:400])
-          elif .type == "assistant" then
-            (.content[]? | select(.type == "text") | .text | gsub("\n"; " ") | .[0:400] | "[" + $name + "] Assistant: " + .)
-          else empty end' "$tmp" >> "$out"
+        # Never learn from the dream's own runs: they are output, not source.
+        agent=$(jq -r '.info.agent // ""' "$tmp" 2>/dev/null) || agent=
+        case $agent in
+          dream-*) echo "dream-corpus: skip $sid (own $agent run)" >&2 ;;
+          *) jq -r --arg name "$name" "$filter" "$tmp" >> "$out" ||
+               echo "dream-corpus: skip $sid (unreadable export)" >&2 ;;
+        esac
       fi
       rm -f "$tmp"
     done

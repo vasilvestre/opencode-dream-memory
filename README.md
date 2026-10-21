@@ -34,9 +34,14 @@ sh install.sh --enable   # install, then enable and start the 04:30 timer
 
 `install.sh` copies three scripts into `$BIN_DIR` (default `~/.local/bin`), two
 agents into `~/.config/opencode/agents`, two systemd user units, and creates
-`~/dreams` with `MEMORY.md`, `DREAMS.md` and an empty project list. It rewrites
-the unit's `ExecStart` to the chosen `BIN_DIR`, and it never overwrites
-`MEMORY.md`, `DREAMS.md` or `dream-projects`.
+`~/dreams` with `MEMORY.md`, `DREAMS.md`, an empty project list and a commented
+`dream-models` file. It rewrites the unit's `ExecStart` to the chosen `BIN_DIR`,
+and it never overwrites `MEMORY.md`, `DREAMS.md`, `dream-projects` or
+`dream-models`.
+
+The deep pass leaves an audit trail: `dreaming/deep/<date>.md` lists each
+promoted fact with the light-report line that supports it, so a fact stays
+checkable after the corpus is gone.
 
 Enable the timer only after reading a manual run. `dream` spends two agent runs
 per invocation, and the script leaves the timer off on purpose: a curl-to-shell
@@ -69,6 +74,10 @@ characters, and the whole corpus is sent to whichever model `dream` runs.
 
 - Inspect `~/dreams/.dreams/session-corpus/<date>.txt` before enabling the
   timer, and again after any session where you pasted something sensitive.
+- The corpus skips the dream's own sessions, so the job cannot feed on its own
+  output. It also redacts labelled secrets (`API_KEY=`, `token:`, `password=`,
+  `secret=`, `bearer ...`). A bare key with no label still gets through, so this
+  is a net, not a guarantee.
 - `opencode session export --sanitize` is not an option: it replaces every
   message with `[redacted:text:...]`, which makes the corpus useless.
 - For a private setup, set a local model in `~/.config/opencode/dream-models`
@@ -76,6 +85,9 @@ characters, and the whole corpus is sent to whichever model `dream` runs.
 - The dream job is instructed never to write secrets into `MEMORY.md`, and the
   plugin injects that file into every request. A secret that reaches it is
   re-sent on every turn.
+- Before the deep pass, `dream` commits `$DREAM_HOME` when it is a git repo, so
+  a bad rewrite is one `git revert` away. The corpus is excluded from that
+  commit even when your `.gitignore` forgets it.
 
 ### Which model runs each stage
 
@@ -126,8 +138,11 @@ Requirements: `opencode` and `jq` on `PATH`, plus systemd for the timer.
 npm test
 ```
 
-Five assertions: the hook registers, a missing file injects nothing, an existing
-file injects one block, the title is dropped, an oversized file is truncated.
+Five hook assertions: the hook registers, a missing file injects nothing, an
+existing file injects one block, the title is dropped, an oversized file is
+truncated. Then the corpus checks: the dream's own sessions stay out, a labelled
+secret is redacted, a torn session export is skipped instead of fatal, and a git
+data directory gets a preimage commit before the deep pass.
 
 ## Licence
 

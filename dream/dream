@@ -66,6 +66,17 @@ echo "dream: light"
 run_agent dream-light \
   "Stage today's candidates from .dreams/session-corpus/$day.txt." "light $day"
 
+# Preimage: a bad promotion then stays one `git checkout` away. Only when the
+# data directory is a repo; install.sh does not create one. The corpus is
+# excluded even when a .gitignore forgets it: session text must not enter git.
+if git -C "$root" rev-parse --git-dir >/dev/null 2>&1; then
+  git -C "$root" add -A -- . ':!.dreams' >/dev/null 2>&1 || true
+  if ! git -C "$root" diff --cached --quiet; then
+    git -C "$root" commit -qm "dream: before deep $day" ||
+      echo "dream: preimage commit failed, check the git identity in $root" >&2
+  fi
+fi
+
 echo "dream: deep"
 if run_agent dream-deep \
   "Promote today's candidates and write the diary entry for $day." "deep $day"; then

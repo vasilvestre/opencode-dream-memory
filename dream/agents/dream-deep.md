@@ -61,7 +61,17 @@ Write `dreaming/deep/<today>.md`:
 - Removed <n> stale entr(y|ies).
 - Pruned <n> candidate(s) as one-off.
 - MEMORY.md: <n> characters (budget 3500, reader cuts at 4000).
+
+## Sources
+
+- <short fact promoted> (dreaming/light/<today>.md:<line>)
+- <another fact> (dreaming/light/<today>.md:<line>)
 ```
+
+List one line per promoted fact, with the line of the light report that
+supports it. The corpus is deleted eventually; this report is what lets a
+reader check a fact afterwards. This is an audit trail, not memory: never add
+these references to `MEMORY.md`.
 
 ## 3. Dream
 

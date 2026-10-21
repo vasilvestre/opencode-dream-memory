@@ -26,6 +26,7 @@ writes what the plugin reads.
 | `dream/agents/dream-*.md` | the two agent prompts, permissions and model pin |
 | `dream/systemd/` | the 04:30 timer |
 | `scripts/check-plugin.mjs` | five assertions on the hook |
+| `scripts/check-corpus.sh` | corpus filter, redaction, torn export, preimage |
 | `install.sh` | copies everything into a home directory |
 
 ## Hard rules
@@ -46,10 +47,13 @@ writes what the plugin reads.
   clone, `git ls-files .opencode` must list the plugin.
 - **`opencode run --agent` does not apply the agent's `model`.** Only an
   explicit `-m` does. Never remove the `-m` from `dream`.
+- **The corpus never ingests the dream's own sessions.** They are output, not
+  source; `dream-corpus` skips any session whose agent starts with `dream-`,
+  and redacts labelled secrets on the way in.
 - **The memory file holds no secrets.** The corpus comes from real sessions; a
   password pasted in a chat must never reach `MEMORY.md`.
 - **The install script never overwrites user data.** `MEMORY.md`, `DREAMS.md`
-  and `dream-projects` are created only when missing.
+  and `dream-projects` are created only when missing. So is `dream-models`.
 - **The timer stays off by default.** `--enable` exists, and a curl-to-shell
   install must not start a job that spends money.
 
@@ -57,7 +61,7 @@ writes what the plugin reads.
 
 ```bash
 git add -f .opencode/plugins/dream-memory.js   # a global .gitignore hides .opencode
-npm test              # five assertions on the hook
+npm test              # hook assertions, then the corpus checks
 sh -n install.sh      # installer syntax
 node --check .opencode/plugins/dream-memory.js
 ```
@@ -77,7 +81,9 @@ dream                   # costs two agent runs
 A full run writes `dreaming/light/<day>.md`, `dreaming/deep/<day>.md`,
 `MEMORY.md` and one diary entry in `DREAMS.md`. Check that the second run of
 the same day rewrites the diary entry instead of adding a second one: that
-behaviour is deliberate and easy to break.
+behaviour is deliberate and easy to break. When `$DREAM_HOME` is a git repo, a
+run also makes a `dream: before deep <day>` commit, which is the preimage to
+restore a bad rewrite from.
 
 ## Loading the plugin locally
 
