@@ -16,6 +16,7 @@ AGENTS="${AGENTS_DIR:-$HOME/.config/opencode/agents}"
 UNITS="${UNITS_DIR:-$HOME/.config/systemd/user}"
 HOME_DREAM="${DREAM_HOME:-$HOME/dreams}"
 LIST="$HOME/.config/opencode/dream-projects"
+MODELS="$HOME/.config/opencode/dream-models"
 
 SRC=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)/dream
 
@@ -33,6 +34,8 @@ done
 for f in dream.service dream.timer; do
   install -m 644 "$SRC/systemd/$f" "$UNITS/$f"
 done
+# The unit must point at the chosen BIN_DIR, which systemd cannot guess.
+sed -i "s|^ExecStart=.*|ExecStart=$BIN/dream|" "$UNITS/dream.service"
 
 [ -f "$HOME_DREAM/MEMORY.md" ] || cat > "$HOME_DREAM/MEMORY.md" <<'EOF'
 # Memory
@@ -59,11 +62,22 @@ EOF
 [ -f "$HOME_DREAM/.gitignore" ] || printf '.dreams/\n' > "$HOME_DREAM/.gitignore"
 
 if [ ! -f "$LIST" ]; then
-  cat > "$LIST" <<EOF
+  cat > "$LIST" <<'EOF'
 # Projects the dream job consolidates, one absolute path per line.
 # A project opts in by having a MEMORY.md file at its root.
+# Add your projects below, for example /home/you/code/my-project
+EOF
+fi
 
-$PWD
+if [ ! -f "$MODELS" ]; then
+  cat > "$MODELS" <<'EOF'
+# Model per dream stage: <stage> <model> [<model> ...]. The script tries them
+# left to right and keeps the first that runs.
+# The light pass reads raw session text; the deep pass reads staged candidates.
+# With no matching line, the script uses its own paid defaults.
+#
+# light opencode-go/deepseek-v4.1-flash
+# deep  opencode-go/deepseek-v4-pro
 EOF
 fi
 

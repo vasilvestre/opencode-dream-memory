@@ -1,7 +1,7 @@
 ---
 description: Extracts staged memory candidates from a session corpus
 mode: primary
-model: opencode/glm-5.3-flash-free
+model: opencode-go/deepseek-v4.1-flash
 permissions:
   - action: "*"
     resource: "*"

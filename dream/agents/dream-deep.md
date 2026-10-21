@@ -1,7 +1,7 @@
 ---
 description: Promotes staged memory candidates and writes the dream diary
 mode: primary
-model: opencode/glm-5.3-flash-free
+model: opencode-go/deepseek-v4-pro
 permissions:
   - action: "*"
     resource: "*"
@@ -37,6 +37,11 @@ Promote a candidate into `MEMORY.md` only when it is durable: a preference or
 rule the user stated, a correction they made, a verified fact about their
 machines, or the cause of a failure likely to repeat.
 
+**Budget: `MEMORY.md` must stay under 3 500 characters.** The reader cuts the
+file at 4 000, so a longer file loses its tail silently. When you add an entry
+and the file would exceed the budget, delete or merge older lines until it
+fits. Deleting a stale fact is part of this pass, not an exception to it.
+
 - Group entries under `## <project>` headings.
 - Add or update the relevant entry in place. Never duplicate one.
 - Remove entries this candidate makes false. A wrong memory is worse than a
@@ -55,6 +60,7 @@ Write `dreaming/deep/<today>.md`:
 - Promoted <n> candidate(s) into MEMORY.md.
 - Removed <n> stale entr(y|ies).
 - Pruned <n> candidate(s) as one-off.
+- MEMORY.md: <n> characters (budget 3500, reader cuts at 4000).
 ```
 
 ## 3. Dream

@@ -35,7 +35,15 @@ writes what the plugin reads.
 - **The plugin id must stay unique.** OpenCode drops *every* plugin when two
   instances claim the same id, so a second copy of this file must not load.
 - **`memoryBlock()` stays bounded.** The 4 000-character cap is what keeps a
-  growing file from eating the context it is meant to save.
+  growing file from eating the context it is meant to save. It cuts on a line
+  boundary and reports the dropped count.
+- **The writer knows the reader's limit.** `dream-deep` is told to keep
+  `MEMORY.md` under 3 500 characters and to delete older entries to fit. Never
+  raise one limit without the other, or the tail of the file disappears
+  silently at 04:30.
+- **The plugin file must stay tracked.** A global `~/.gitignore` entry for
+  `.opencode` hides it, so a plain `git add -A` never stages it. After a fresh
+  clone, `git ls-files .opencode` must list the plugin.
 - **`opencode run --agent` does not apply the agent's `model`.** Only an
   explicit `-m` does. Never remove the `-m` from `dream`.
 - **The memory file holds no secrets.** The corpus comes from real sessions; a
@@ -48,6 +56,7 @@ writes what the plugin reads.
 ## Before you commit
 
 ```bash
+git add -f .opencode/plugins/dream-memory.js   # a global .gitignore hides .opencode
 npm test              # five assertions on the hook
 sh -n install.sh      # installer syntax
 node --check .opencode/plugins/dream-memory.js

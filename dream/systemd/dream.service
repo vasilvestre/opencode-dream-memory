@@ -1,7 +1,11 @@
 [Unit]
-Description=Consolidate OpenCode sessions into each project's docs/memoire.md
+Description=Consolidate OpenCode sessions into a memory file
 
 [Service]
 Type=oneshot
-Environment="PATH=/home/vsilvestre/.openclaw/tools/node-v24.21.0/bin:/usr/local/bin:/usr/bin:/bin"
-ExecStart=/home/vsilvestre/.local/bin/dream
+# Portable defaults. If `opencode` lives outside them, put its directory in
+# ~/.config/dream.env as PATH=/your/bin:/usr/local/bin:/usr/bin:/bin
+Environment="PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin"
+EnvironmentFile=-%h/.config/dream.env
+# install.sh rewrites the line below to the chosen BIN_DIR.
+ExecStart=%h/.local/bin/dream

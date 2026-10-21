@@ -14,7 +14,10 @@ day=$(date +%F)
 command -v opencode >/dev/null || { echo "dream: opencode not on PATH" >&2; exit 1; }
 [ -r "$list" ] || { echo "dream: no project list at $list" >&2; exit 1; }
 
-"$HOME/.local/bin/dream-corpus"
+# Resolve next to this script, so a custom BIN_DIR works without a PATH.
+here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+corpus_bin="${DREAM_CORPUS_BIN:-$here/dream-corpus}"
+"$corpus_bin"
 
 corpus="$root/.dreams/session-corpus/$day.txt"
 [ -s "$corpus" ] || { echo "dream: empty corpus, nothing to do" >&2; exit 0; }
@@ -22,11 +25,34 @@ corpus="$root/.dreams/session-corpus/$day.txt"
 mkdir -p "$root/dreaming/light" "$root/dreaming/deep"
 cd "$root"
 
+# Per-stage model choice: "<stage> <model> [<model> ...]", first that works wins.
+# The light pass reads raw session text, so this is where a local or paid
+# provider matters. Missing file or missing stage falls back to the paid
+# defaults below. Never fall back to a free model: sending the corpus to a
+# provider that trains on its input is a downgrade nobody asked for.
+models="${DREAM_MODELS:-$HOME/.config/opencode/dream-models}"
+
+default_models() {
+  case $1 in
+    deep) echo "opencode-go/deepseek-v4-pro opencode-go/deepseek-v4.1-flash" ;;
+    *) echo "opencode-go/deepseek-v4.1-flash opencode-go/deepseek-v4-pro" ;;
+  esac
+}
+
+models_for() {
+  found=
+  if [ -r "$models" ]; then
+    found=$(awk -v stage="$1" '$1 == stage { sub(/^[[:space:]]*[^[:space:]]+[[:space:]]+/, ""); print; exit }' "$models")
+  fi
+  printf '%s\n' "${found:-$(default_models "$1")}"
+}
+
 # --agent does not carry the model: a session keeps its own selected model, so
-# pass -m explicitly, and fall back when a free endpoint is down.
+# pass -m explicitly, and fall back down the stage's list.
 run_agent() {
   agent=$1; prompt=$2; title=$3
-  for model in opencode/glm-5.3-flash-free opencode/deepseek-v4.1-flash-free opencode/nemotron-3-ultra-free; do
+  for model in $(models_for "${agent#dream-}"); do
+    echo "dream: $agent on $model" >&2
     if opencode run --agent "$agent" -m "$model" --title "$title" "$prompt"; then
       return 0
     fi
