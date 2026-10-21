@@ -1,0 +1,38 @@
+{
+  "name": "@vasilvestre/opencode-dream-memory",
+  "version": "0.1.0",
+  "description": "Injects a cross-session memory file into every OpenCode request, so it survives context compaction.",
+  "keywords": [
+    "opencode-plugin",
+    "opencode",
+    "memory",
+    "context",
+    "compaction"
+  ],
+  "license": "MIT",
+  "author": {
+    "name": "vasilvestre",
+    "url": "https://github.com/vasilvestre"
+  },
+  "homepage": "https://github.com/vasilvestre/opencode-dream-memory",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vasilvestre/opencode-dream-memory.git"
+  },
+  "type": "module",
+  "main": "./.opencode/plugins/dream-memory.js",
+  "exports": {
+    ".": "./.opencode/plugins/dream-memory.js",
+    "./plugin": "./.opencode/plugins/dream-memory.js"
+  },
+  "scripts": {
+    "test": "node scripts/check-plugin.mjs"
+  },
+  "files": [
+    ".opencode/",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}
