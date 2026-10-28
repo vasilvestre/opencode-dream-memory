@@ -55,6 +55,7 @@ case $1/$2 in
     case $PWD in
       */pa) printf '%s\n' "[{\"id\":\"pa-old\",\"updated\":$((now - 10*3600000))},{\"id\":\"pa-new\",\"updated\":$((now - 1*3600000))}]" ;;
       */pb) printf '%s\n' "[{\"id\":\"pb-old\",\"updated\":$((now - 10*3600000))}]" ;;
+      */pd) printf '%s\n' "[{\"id\":\"pd-old\",\"updated\":$((now - 40*3600000))}]" ;;
     esac
     ;;
   session/export)
@@ -62,6 +63,7 @@ case $1/$2 in
       pa-old) printf '%s\n' '{"info":{"agent":"build"},"messages":[{"type":"user","text":"old pa line"}]}' ;;
       pa-new) printf '%s\n' '{"info":{"agent":"build"},"messages":[{"type":"user","text":"new pa line"}]}' ;;
       pb-old) printf '%s\n' '{"info":{"agent":"build"},"messages":[{"type":"user","text":"old pb line"}]}' ;;
+      pd-old) printf '%s\n' '{"info":{"agent":"build"},"messages":[{"type":"user","text":"old pd line"}]}' ;;
     esac
     ;;
 esac
@@ -81,6 +83,20 @@ PATH="$pc:$PATH" DREAM_HOME="$pc/home" DREAM_PROJECTS="$pc/projects" \
   { echo "check-corpus: an already-run project re-ingested its history" >&2; exit 1; }
 [ "$(grep -c 'old pb line' "$pccorpus")" = 1 ] ||
   { echo "check-corpus: a newly added project's history was skipped" >&2; exit 1; }
+
+# Catch-up window: DREAM_SINCE_HOURS raises the 24h floor, so sessions from a
+# missed run are still ingested. The default must stay at 24h.
+mkdir -p "$pc/pd/.git"
+printf '%s\n' "$pc/pd" > "$pc/projects2"
+pdc="$pc/home2/.dreams/session-corpus/$(date +%F).txt"
+PATH="$pc:$PATH" DREAM_HOME="$pc/home2" DREAM_PROJECTS="$pc/projects2" \
+  "$repo/dream/dream-corpus" >/dev/null 2>&1
+! grep -Fq 'old pd line' "$pdc" ||
+  { echo "check-corpus: a 40h session entered the default 24h window" >&2; exit 1; }
+PATH="$pc:$PATH" DREAM_HOME="$pc/home2" DREAM_PROJECTS="$pc/projects2" DREAM_SINCE_HOURS=48 \
+  "$repo/dream/dream-corpus" >/dev/null 2>&1
+grep -Fq 'old pd line' "$pdc" ||
+  { echo "check-corpus: DREAM_SINCE_HOURS did not widen the window" >&2; exit 1; }
 
 # Preimage: a git data directory gets a commit before the deep pass.
 data="$root/data"

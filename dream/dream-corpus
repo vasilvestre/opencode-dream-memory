@@ -10,8 +10,11 @@ root="${DREAM_HOME:-$HOME/dreams}"
 list="${DREAM_PROJECTS:-$HOME/.config/opencode/dream-projects}"
 day=$(date +%F)
 now=$(( $(date +%s) * 1000 ))
+hours=${DREAM_SINCE_HOURS:-24}
+case $hours in ''|*[!0-9]*) hours=24 ;; esac
 # Incremental, per project: each project ingests sessions since its own last
-# successful run, never earlier than 24h ago. A project with no cursor is new,
+# successful run, never earlier than 24h ago. DREAM_SINCE_HOURS raises that
+# floor, to catch up after missed runs. A project with no cursor is new,
 # so it ingests its full 24h history instead of being skipped by another
 # project's cursor. Without this, adding a project after a run silently drops
 # its past sessions.
@@ -48,7 +51,7 @@ while IFS= read -r project; do
   last=0
   [ -r "$state/$name" ] && last=$(cat "$state/$name" 2>/dev/null || true)
   case $last in ''|*[!0-9]*) last=0 ;; esac
-  cutoff=$(( now - 86400000 ))
+  cutoff=$(( now - hours * 3600000 ))
   [ "$last" -gt "$cutoff" ] && cutoff=$last
   cd "$project"
 
