@@ -57,7 +57,14 @@ fits. Deleting a stale fact is part of this pass, not an exception to it.
 - Add or update the entry in place. Never duplicate one.
 - Remove entries this candidate makes false. A wrong memory is worse than a
   missing one.
-- Keep each file curated: short lines, one fact each, no chronology.
+- Keep each file curated: one fact per line, at most ~120 characters, no
+  chronology. Merge lines that state one fact.
+- Memory costs context on every request. When a file in the project already
+  documents a fact, promote a one-line pointer to that file instead of the
+  fact itself, for example: `Seedbox rename gotchas: see new-seedbox-runbook.md §8`.
+  A fact that is one `grep` away is not worth a memory line.
+- When a file would exceed its budget, delete the weakest facts to make room.
+  Never shorten a line below readability to make it fit.
 - Write a fact about a machine, a repository or a setup into that project's
   file, not into shared memory.
 - If shared memory holds a fact about one project, move it into that project's
