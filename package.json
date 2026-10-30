@@ -1,6 +1,6 @@
 {
   "name": "@vasilvestre/opencode-dream-memory",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Injects shared and per-project memory files into every OpenCode request, so they survive context compaction.",
   "keywords": [
     "opencode-plugin",
