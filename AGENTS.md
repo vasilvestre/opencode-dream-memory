@@ -28,6 +28,7 @@ writes what the plugin reads.
 | `scripts/check-plugin.mjs` | assertions on the hook: scope, isolation, budget |
 | `scripts/check-corpus.sh` | corpus filter, redaction, torn export, preimage |
 | `install.sh` | installs the plugin and the job; downloads the archive when piped |
+| `package.json` | npm metadata; `main` and `exports` point at the plugin file |
 
 ## Hard rules
 
@@ -119,6 +120,18 @@ the job in one unless they change together.
 
 ## Release
 
-Not published to npm yet. When it is, bump `version`, run the checks above, and
-`npm publish --access public`. Local use goes through the symlink or
-`install.sh`, so a release is only needed to let other people install it.
+Published to npm as `@vasilvestre/opencode-dream-memory`. `package.json` points
+its `main` and `exports` at `.opencode/plugins/dream-memory.js`, so the npm
+tarball ships the same file the symlink loads.
+
+Bumping the version is the release decision:
+
+```bash
+npm version patch   # or minor, or major
+git push --follow-tags
+```
+
+`.github/workflows/release.yml` publishes on every push to `main` when the
+version in `package.json` is not on npm yet. It stops at "Skip when already
+published" when the version is unchanged. Local use still goes through the
+symlink or `install.sh`.
