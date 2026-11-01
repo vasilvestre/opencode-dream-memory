@@ -124,7 +124,8 @@ Published to npm as `@vasilvestre/opencode-dream-memory`. `package.json` points
 its `main` and `exports` at `.opencode/plugins/dream-memory.js`, so the npm
 tarball ships the same file the symlink loads.
 
-Bumping the version is the release decision:
+**Bumping the version is the release decision.** Do it in the same commit as
+the change:
 
 ```bash
 npm version patch   # or minor, or major
@@ -135,3 +136,9 @@ git push --follow-tags
 version in `package.json` is not on npm yet. It stops at "Skip when already
 published" when the version is unchanged. Local use still goes through the
 symlink or `install.sh`.
+
+`ci.yml` runs the tests on every pull request and push. It does not publish.
+
+The npm trusted publisher points at `vasilvestre/opencode-plain-style`,
+workflow `release.yml`. Renaming the file breaks publishing until the trusted
+publisher is updated on npmjs.com.
