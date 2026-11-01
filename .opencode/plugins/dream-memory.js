@@ -75,9 +75,20 @@ export default {
     const location = ctx.location ?? {};
     const directory =
       location.project?.canonical || location.project?.directory || location.directory;
-    await ctx.session.hook('context', (event) => {
-      const block = memoryBlock(directory);
-      if (block) event.system.push({ type: 'text', text: block });
-    });
+    const register = async (name) => {
+      await ctx.session.hook(name, (event) => {
+        try {
+          const block = memoryBlock(directory);
+          // Both events carry a system array of text parts. Compaction reads the
+          // same memory the agent loop does, so the summary keeps it. We append
+          // and never set event.result: the model still writes the summary.
+          if (block) event.system.push({ type: 'text', text: block });
+        } catch {
+          // A throwing hook breaks the request it runs on. Inject nothing.
+        }
+      });
+    };
+    await register('context');
+    await register('compaction');
   },
 };

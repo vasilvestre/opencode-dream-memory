@@ -34,6 +34,9 @@ writes what the plugin reads.
 
 - **The hook must fail silent.** It runs on every request; an exception there
   breaks every request. Missing, empty or unreadable file means inject nothing.
+- **The `compaction` hook adds context, never a summary.** It pushes into
+  `event.system` and must never set `event.result`: the model writes the
+  summary, and a bad one costs more than the call it saves.
 - **The plugin id must stay unique.** OpenCode drops *every* plugin when two
   instances claim the same id, so a second copy of this file must not load.
 - **`memoryBlock()` stays bounded.** Each part is cut on its own: shared memory

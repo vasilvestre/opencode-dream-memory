@@ -12,21 +12,21 @@ const { default: plugin } = await import('../.opencode/plugins/dream-memory.js')
 
 assert.equal(plugin.id, 'vasilvestre.opencode-dream-memory');
 
-// The plugin only reads the base name of the project directory.
-async function inject(directory) {
-  let handler;
+// The plugin only reads the base name of the project directory. It registers
+// one handler per hook, so the harness keeps them by name.
+async function inject(directory, hook = 'context') {
+  const handlers = {};
   await plugin.setup({
     location: { directory, project: { canonical: directory } },
     session: {
       hook: async (name, fn) => {
-        assert.equal(name, 'context');
-        handler = fn;
+        handlers[name] = fn;
       },
     },
   });
-  assert.equal(typeof handler, 'function', 'setup registers a context hook');
+  assert.deepEqual(Object.keys(handlers).sort(), ['compaction', 'context'], 'setup registers one context hook and one compaction hook');
   const event = { system: [] };
-  handler(event);
+  handlers[hook](event);
   return event.system;
 }
 
@@ -64,6 +64,32 @@ blocks = await inject('/work/a');
 assert.match(blocks[0].text, /\[a memory truncated: \d+ characters dropped/, 'an oversized project file is truncated');
 assert.ok(!blocks[0].text.includes('tail fact'), 'the tail is what gets dropped');
 assert.ok(blocks[0].text.length < 200 + 1000 + 3000 + 300, 'the whole block stays bounded');
+
+// Compaction gets the same memory as the agent loop, with the same budget.
+fs.writeFileSync(project('a'), '# a\n\n- project a fact\n');
+const context = await inject('/work/a', 'context');
+const compaction = await inject('/work/a', 'compaction');
+assert.deepEqual(compaction, context, 'the compaction hook injects the same block as the context hook');
+assert.match(compaction[0].text, /project a fact/);
+
+// The summary is the model's job. The hook only adds context.
+const event = { system: [], result: undefined };
+const handlers = {};
+await plugin.setup({
+  location: { directory: '/work/a', project: { canonical: '/work/a' } },
+  session: { hook: async (name, fn) => (handlers[name] = fn) },
+});
+handlers.compaction(event);
+assert.equal(event.result, undefined, 'the compaction hook never replaces the summary');
+
+// A missing memory file still adds nothing, and a broken one does not throw.
+fs.rmSync(root);
+fs.rmSync(path.join(home, 'projects'), { recursive: true, force: true });
+assert.deepEqual(await inject('/work/a', 'compaction'), [], 'missing files inject nothing into compaction');
+const broken = project('a');
+fs.rmSync(broken, { force: true });
+fs.mkdirSync(broken);
+assert.deepEqual(await inject('/work/a', 'compaction'), [], 'an unreadable file injects nothing and does not throw');
 
 fs.rmSync(home, { recursive: true, force: true });
 console.log('ok: plugin checks');
