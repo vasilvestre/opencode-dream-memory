@@ -13,7 +13,7 @@ hook runs on every agent-loop request, so the same block is re-sent each turn.
 ## Install
 
 Requirements: `opencode` and `jq` on `PATH`, `curl` or `wget` to download, and
-systemd for the timer.
+systemd for the timer. `dream discover` also needs the `sqlite3` command.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/vasilvestre/opencode-dream-memory/main/install.sh | sh

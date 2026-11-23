@@ -58,11 +58,18 @@ EOF
     config="${XDG_CONFIG_HOME:-$HOME/.config}/opencode"
     command -v sqlite3 >/dev/null 2>&1 || { echo "dream: discover needs sqlite3" >&2; exit 1; }
     [ -r "$db" ] || { echo "dream: no opencode database at $db" >&2; exit 1; }
-    listed="${DREAM_PROJECTS:-$config/dream-projects}"
-    # -readonly: another program owns the database, and this command must not
-    # create -shm files or roll back a hot journal. A failed query is fatal:
-    # an empty result reads as "nothing is missing".
-    rows=$(sqlite3 -readonly "$db" 'select distinct worktree from project' 2>/dev/null) ||
+    listed="${DREAM_PROJECTS:-$HOME/.config/opencode/dream-projects}"
+    # The live database is in WAL mode. A read-only open needs a -shm that only
+    # a running server holds, and a read-write open would create one. Query a
+    # private copy instead, so the server's files stay untouched.
+    tmp=$(mktemp -d) || { echo "dream: cannot create a temporary directory" >&2; exit 1; }
+    trap 'rm -rf "$tmp"' EXIT
+    cp "$db" "$tmp/db" || { echo "dream: cannot read $db" >&2; exit 1; }
+    if [ -e "${db}-wal" ]; then
+      cp "${db}-wal" "$tmp/db-wal" || { echo "dream: cannot read ${db}-wal" >&2; exit 1; }
+    fi
+    # A failed query is fatal: an empty result reads as "nothing is missing".
+    rows=$(sqlite3 -readonly "$tmp/db" 'select distinct worktree from project' 2>/dev/null) ||
       { echo "dream: cannot query $db" >&2; exit 1; }
     printf '%s\n' "$rows" | while IFS= read -r dir; do
       case $dir in ''|/|"$HOME"|"$HOME/"|"$config"|"$root"|"$root/"|"$HOME/.cache"*|*/.local/share/opencode|*/state/work/*) continue ;; esac
