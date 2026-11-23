@@ -45,8 +45,10 @@ Two destinations:
 - `MEMORY.md` holds facts that are true in every project: how the user wants
   work done, their general preferences. Keep it under **900 characters**.
 - `projects/<project>/MEMORY.md` holds facts about one project. The
-  `project:` line of the candidate gives the name: `project: homelab` means
-  `projects/homelab/MEMORY.md`. Keep each file under **2 800 characters**.
+  `project:` line of the candidate is the default name: `project: homelab`
+  means `projects/homelab/MEMORY.md`. When the candidate names a repository or
+  project other than its tag, the subject wins: write it to that project's
+  file instead. Keep each file under **2 800 characters**.
 
 The plugin injects shared memory into every session, and the current project's
 file only. It cuts shared memory at 1 000 characters and a project file at
@@ -71,7 +73,8 @@ fits. Deleting a stale fact is part of this pass, not an exception to it.
   file and delete it from shared memory.
 - Never write a secret, a token, or a password.
 - If a project file does not exist, create it with a `# <project>` title. Never
-  create one for a project that has no candidate today.
+  create one for a project that has no candidate today. A candidate whose
+  subject is another project is a candidate for it.
 
 ## 2. Report
 
@@ -85,6 +88,7 @@ Write `dreaming/deep/<today>.md`:
 - Removed <n> stale entr(y|ies).
 - Pruned <n> candidate(s) as one-off.
 - Changed: MEMORY.md, projects/<name>/MEMORY.md.
+- Moved: projects/<tag> -> projects/<subject>.
 
 ## Sources
 

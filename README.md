@@ -107,9 +107,10 @@ Two files, read fresh on every request:
 
 `<name>` is the base name of the project directory: `~/homelab` reads
 `projects/homelab/MEMORY.md`. The corpus uses the same tag, so a candidate
-lands in the file of the project it came from. OpenCode creates one plugin
-instance per project location, so the hook knows which project it serves; a
-worktree uses the name of its main repository.
+lands there by default; the deep pass moves a fact to the file of the project
+it is about. OpenCode creates one plugin instance per project location, so the
+hook knows which project it serves; a worktree uses the name of its main
+repository.
 
 The block opens with a header saying the content comes from a nightly pass and
 may be stale. Top-level titles are dropped. A part that is missing, empty or
