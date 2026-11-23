@@ -28,6 +28,7 @@ case $1/$2 in
     if [ "$3" = dream-deep ]; then
       mkdir -p "$DREAM_HOME/projects/planted"
       : > "$DREAM_HOME/projects/planted/MEMORY.md"
+      printf 'planted line\n' >> "$DREAM_HOME/projects/old/MEMORY.md"
     fi
     ;;
 esac
@@ -106,8 +107,9 @@ grep -Fq 'old pd line' "$pdc" ||
   { echo "check-corpus: DREAM_SINCE_HOURS did not widen the window" >&2; exit 1; }
 
 # Preimage: a git data directory gets a commit before the deep pass. The pass
-# may write a tracked project file but must not add one, so the fake opencode
-# plants `projects/planted/MEMORY.md` and the run has to remove it.
+# may write a tracked project file but must keep every other write off the disk,
+# so the fake opencode plants `projects/planted/MEMORY.md` and appends to the
+# untracked `projects/old/MEMORY.md`; the run has to undo both.
 data="$root/data"
 mkdir -p "$data/dreaming/light"
 git -C "$data" init -q
@@ -123,6 +125,8 @@ echo '# Light' > "$data/dreaming/light/\$(date +%F).md"
 EOF
 chmod +x "$root/corpus-bin"
 printf '%s\n' "$root/repo" > "$root/plist"
+mkdir -p "$data/projects/old"
+printf '# old\n' > "$data/projects/old/MEMORY.md"
 
 PATH="$fake:$PATH" DREAM_HOME="$data" DREAM_PROJECTS="$root/plist" \
   DREAM_CORPUS_BIN="$root/corpus-bin" "$repo/dream/dream" > /dev/null 2>&1
@@ -131,6 +135,8 @@ PATH="$fake:$PATH" DREAM_HOME="$data" DREAM_PROJECTS="$root/plist" \
   { echo "check-corpus: dream removed a tracked project file" >&2; exit 1; }
 [ ! -e "$data/projects/planted/MEMORY.md" ] ||
   { echo "check-corpus: dream kept a project file the deep pass created" >&2; exit 1; }
+[ "$(cat "$data/projects/old/MEMORY.md")" = '# old' ] ||
+  { echo "check-corpus: dream kept a write to an untracked project file" >&2; exit 1; }
 
 git -C "$data" log --oneline | grep -Fq 'dream: before deep' ||
   { echo "check-corpus: no preimage commit before the deep pass" >&2; exit 1; }
