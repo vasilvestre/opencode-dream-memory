@@ -55,11 +55,17 @@ EOF
     # Print the git repositories opencode has seen but the project list omits,
     # so you can paste the missing ones in by hand. No model, no writes.
     db="${DREAM_DB:-$HOME/.local/share/opencode/opencode.db}"
+    config="${XDG_CONFIG_HOME:-$HOME/.config}/opencode"
     command -v sqlite3 >/dev/null 2>&1 || { echo "dream: discover needs sqlite3" >&2; exit 1; }
     [ -r "$db" ] || { echo "dream: no opencode database at $db" >&2; exit 1; }
-    listed="${DREAM_PROJECTS:-$HOME/.config/opencode/dream-projects}"
-    sqlite3 "$db" 'select distinct worktree from project' 2>/dev/null | while IFS= read -r dir; do
-      case $dir in ''|/|"$HOME"|"$HOME/"|"$HOME/.config/opencode"|"$HOME/dreams"|"$HOME/.cache"*|*/.local/share/opencode|*/state/work/*) continue ;; esac
+    listed="${DREAM_PROJECTS:-$config/dream-projects}"
+    # -readonly: another program owns the database, and this command must not
+    # create -shm files or roll back a hot journal. A failed query is fatal:
+    # an empty result reads as "nothing is missing".
+    rows=$(sqlite3 -readonly "$db" 'select distinct worktree from project' 2>/dev/null) ||
+      { echo "dream: cannot query $db" >&2; exit 1; }
+    printf '%s\n' "$rows" | while IFS= read -r dir; do
+      case $dir in ''|/|"$HOME"|"$HOME/"|"$config"|"$root"|"$root/"|"$HOME/.cache"*|*/.local/share/opencode|*/state/work/*) continue ;; esac
       # A nested worktree has a .git file, not a directory; skip it.
       [ -d "$dir/.git" ] || continue
       if [ -r "$listed" ] && grep -Fxq "$dir" "$listed"; then continue; fi

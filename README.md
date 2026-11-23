@@ -181,6 +181,7 @@ and that flag beats the agent's pinned model. Override the file path with
 | `dream` | builds the corpus, then the light and deep passes |
 | `dream corpus` | only the corpus, no model, no cost |
 | `dream status` | one screen of state, read-only |
+| `dream discover` | lists the git repositories opencode saw but the project list omits |
 | `dream reset` | deletes memory, diary, staging and corpus under `DREAM_HOME` |
 
 `dream reset` asks for confirmation; add `--yes` to skip it. It never touches
