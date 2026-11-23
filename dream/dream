@@ -78,15 +78,24 @@ cd "$root"
 # One memory file per tracked project, so the deep pass only ever edits files
 # that exist. Named after the project directory, the same tag dream-corpus
 # writes into the corpus.
+tracked=
 while IFS= read -r project; do
   case $project in ''|\#*) continue ;; esac
   name=$(basename "$project")
   case $name in ''|.|..) continue ;; esac
+  tracked="${tracked}${tracked:+, }$name"
   memory="$root/projects/$name/MEMORY.md"
   [ -f "$memory" ] && continue
   mkdir -p "$(dirname "$memory")"
   printf '# %s\n' "$name" > "$memory"
 done < "$list"
+
+# The deep pass must never add a project file: the plugin reads one file per
+# project name, so a planted file is written and never injected. Remember what
+# exists now and drop whatever is new after the pass, whatever the model says.
+existing=$(mktemp)
+trap 'rm -f "$existing"' EXIT
+find "$root/projects" -name MEMORY.md 2>/dev/null | sort > "$existing" || true
 
 # Per-stage model choice: "<stage> <model> [<model> ...]", first that works wins.
 # The light pass reads raw session text, so this is where a local or paid
@@ -142,7 +151,7 @@ fi
 
 echo "dream: deep"
 if run_agent dream-deep \
-  "Promote today's candidates and write the diary entry for $day." "deep $day"; then
+  "Promote today's candidates and write the diary entry for $day. Tracked projects: ${tracked:-none}." "deep $day"; then
   # Advance each project's cursor only after both passes succeeded, so a failed
   # run is retried on the same slice instead of losing it. A project without a
   # git repo is skipped by dream-corpus, so it keeps a zero cursor and its full
@@ -156,3 +165,10 @@ if run_agent dream-deep \
     printf '%s\n' "$now_ms" > "$root/.dreams/last-run/$name"
   done < "$list"
 fi
+
+find "$root/projects" -name MEMORY.md 2>/dev/null | sort | while IFS= read -r memory; do
+  grep -qxF "$memory" "$existing" && continue
+  rm -f "$memory"
+  rmdir "$(dirname "$memory")" 2>/dev/null || true
+  echo "dream: removed a project file the deep pass created: ${memory#"$root"/}" >&2
+done

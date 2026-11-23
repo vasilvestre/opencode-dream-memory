@@ -108,8 +108,9 @@ Two files, read fresh on every request:
 `<name>` is the base name of the project directory: `~/homelab` reads
 `projects/homelab/MEMORY.md`. The corpus uses the same tag, so a candidate
 lands there by default; the deep pass may move a fact to the file of another
-project it is about, but only when that project is already tracked (its
-`projects/<name>/MEMORY.md` exists). It never creates a new project file.
+project it is about, but only when that project is already tracked (listed in
+`dream-projects`). It never creates a new project file: `dream` deletes any
+project file the deep pass adds.
 OpenCode creates one plugin instance per project location, so the hook knows
 which project it serves; a worktree uses the name of its main repository.
 

@@ -1,7 +1,8 @@
 #!/bin/sh
 # Two invariants the dream job must not lose: the corpus never carries the
 # dream's own output or a labelled secret, and the deep pass runs behind a
-# git preimage. Both fail silently in production, hence this check.
+# git preimage and never adds a project file. All fail silently in production,
+# hence this check.
 set -eu
 
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
@@ -22,6 +23,12 @@ case $1/$2 in
       s2) printf '%s\n' '{"info":{"agent":"dream-light"},"messages":[{"type":"user","text":"self output"}]}' ;;
       s3) printf '{"info":{"agent":"build"},"messages":[{"type":"user","text":"trunc"\n' ;;
     esac
+    ;;
+  run/--agent)
+    if [ "$3" = dream-deep ]; then
+      mkdir -p "$DREAM_HOME/projects/planted"
+      : > "$DREAM_HOME/projects/planted/MEMORY.md"
+    fi
     ;;
 esac
 EOF
@@ -98,7 +105,9 @@ PATH="$pc:$PATH" DREAM_HOME="$pc/home2" DREAM_PROJECTS="$pc/projects2" DREAM_SIN
 grep -Fq 'old pd line' "$pdc" ||
   { echo "check-corpus: DREAM_SINCE_HOURS did not widen the window" >&2; exit 1; }
 
-# Preimage: a git data directory gets a commit before the deep pass.
+# Preimage: a git data directory gets a commit before the deep pass. The pass
+# may write a tracked project file but must not add one, so the fake opencode
+# plants `projects/planted/MEMORY.md` and the run has to remove it.
 data="$root/data"
 mkdir -p "$data/dreaming/light"
 git -C "$data" init -q
@@ -113,9 +122,15 @@ echo x > "$data/.dreams/session-corpus/\$(date +%F).txt"
 echo '# Light' > "$data/dreaming/light/\$(date +%F).md"
 EOF
 chmod +x "$root/corpus-bin"
+printf '%s\n' "$root/repo" > "$root/plist"
 
-PATH="$fake:$PATH" DREAM_HOME="$data" DREAM_PROJECTS=/dev/null \
+PATH="$fake:$PATH" DREAM_HOME="$data" DREAM_PROJECTS="$root/plist" \
   DREAM_CORPUS_BIN="$root/corpus-bin" "$repo/dream/dream" > /dev/null 2>&1
+
+[ -f "$data/projects/repo/MEMORY.md" ] ||
+  { echo "check-corpus: dream removed a tracked project file" >&2; exit 1; }
+[ ! -e "$data/projects/planted/MEMORY.md" ] ||
+  { echo "check-corpus: dream kept a project file the deep pass created" >&2; exit 1; }
 
 git -C "$data" log --oneline | grep -Fq 'dream: before deep' ||
   { echo "check-corpus: no preimage commit before the deep pass" >&2; exit 1; }

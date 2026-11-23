@@ -48,11 +48,13 @@ Two destinations:
   line is the default name: `project: homelab` means `projects/homelab/MEMORY.md`.
   The `subject:` line is the project the fact is about; write the fact to
   `projects/<subject>/MEMORY.md` when it differs from the tag. The subject must
-  be tracked: an exact match for an existing `projects/<name>/MEMORY.md` file,
-  so a single path segment matching `[A-Za-z0-9._-]+`, never `.`, `..`, or a
-  string with `/`. When the subject is not tracked, ignore it and keep the fact
-  under its tag; name the skipped subject in the report. Never create a memory
-  file for a subject that is not already tracked. Keep each file under
+  be tracked: a name from the tracked projects list in your prompt, the entries
+  of `dream-projects`, and a single path segment matching `[A-Za-z0-9._-]+`,
+  never `.`, `..`, or a string with `/`. A file left over from a project that
+  left `dream-projects` is not tracked, even though the file exists. When the
+  subject is not tracked, ignore it and keep the fact under its tag; name the
+  skipped subject in the report. Never create a memory file: `dream` deletes
+  any project file that did not exist before the pass. Keep each file under
   **2 800 characters**.
 
 The plugin injects shared memory into every session, and the current project's
@@ -77,9 +79,9 @@ fits. Deleting a stale fact is part of this pass, not an exception to it.
 - If shared memory holds a fact about one project, move it into that project's
   file and delete it from shared memory.
 - Never write a secret, a token, or a password.
-- Never create a `projects/<name>/MEMORY.md` file here: the tracked set is the
-  files that already exist. A fact whose subject is untracked stays under its
-  tag, and the report names the skipped subject.
+- Never create a `projects/<name>/MEMORY.md` file here. The tracked set is the
+  entries of `dream-projects`; a fact whose subject is untracked stays under
+  its tag, and the report names the skipped subject.
 
 ## 2. Report
 
