@@ -159,6 +159,9 @@ case $1/$2 in
       printf 'planted line\n' >> "$DREAM_HOME/projects/old/MEMORY.md"
       mkdir -p "$DREAM_HOME/projects/planted"
       : > "$DREAM_HOME/projects/planted/MEMORY.md"
+      printf '\n## Diary\n\n- Promoted 1 candidate(s) into memory.\n' >> "$DREAM_HOME/DREAMS.md"
+      printf '# Deep Sleep\n\n- Promoted 1 candidate(s) into memory.\n' \
+        > "$DREAM_HOME/dreaming/deep/$(date +%F).md"
       exit 1
     fi ;;
 esac
@@ -179,7 +182,57 @@ PATH="$fail:$PATH" DREAM_HOME="$fail/home" DREAM_PROJECTS="$fail/plist" \
   { echo "check-corpus: a crash after a planted write was not undone" >&2; exit 1; }
 [ "$(cat "$fail/home/projects/old/MEMORY.md")" = '# old' ] ||
   { echo "check-corpus: a crash after a write to an untracked file was not undone" >&2; exit 1; }
+! grep -Fq 'Promoted 1' "$fail/home/DREAMS.md" 2>/dev/null ||
+  { echo "check-corpus: a crash kept the rolled-back diary entry" >&2; exit 1; }
+deepf="$fail/home/dreaming/deep/$(date +%F).md"
+! grep -Fq 'Promoted 1' "$deepf" 2>/dev/null ||
+  { echo "check-corpus: a crash kept a report of rolled-back facts" >&2; exit 1; }
+grep -Fq 'Reverted' "$deepf" ||
+  { echo "check-corpus: the reverted report does not say so" >&2; exit 1; }
 [ ! -e "$fail/home/.dreams/last-run/repo" ] ||
   { echo "check-corpus: a failed pass advanced the cursor" >&2; exit 1; }
+
+# Failed restore: the copy back cannot run (a full disk or a permission error).
+# The snapshot must then survive the EXIT trap, or the only complete copy is
+# gone. A read-only home stands in for a full disk, so this part needs a
+# non-root user.
+if [ "$(id -u)" -ne 0 ]; then
+  fail2="$root/fail2"
+  mkdir -p "$fail2/home/projects/old" "$fail2/home/dreaming/light" "$fail2/tmp"
+  printf '# Memory\n' > "$fail2/home/MEMORY.md"
+  printf '# old\n' > "$fail2/home/projects/old/MEMORY.md"
+  cat > "$fail2/opencode" <<'EOF3'
+#!/bin/sh
+case $1/$2 in
+  run/--agent)
+    if [ "$3" = dream-deep ]; then
+      printf 'planted line\n' >> "$DREAM_HOME/projects/old/MEMORY.md"
+      chmod 555 "$DREAM_HOME"
+      exit 1
+    fi ;;
+esac
+EOF3
+  chmod +x "$fail2/opencode"
+  cat > "$fail2/corpus-bin" <<EOF3
+#!/bin/sh
+mkdir -p "$fail2/home/.dreams/session-corpus" "$fail2/home/dreaming/light"
+echo x > "$fail2/home/.dreams/session-corpus/\$(date +%F).txt"
+echo '# Light' > "$fail2/home/dreaming/light/\$(date +%F).md"
+EOF3
+  chmod +x "$fail2/corpus-bin"
+  printf '%s\n' "$root/repo" > "$fail2/plist"
+  TMPDIR="$fail2/tmp" PATH="$fail2:$PATH" DREAM_HOME="$fail2/home" \
+    DREAM_PROJECTS="$fail2/plist" DREAM_CORPUS_BIN="$fail2/corpus-bin" \
+    DREAM_MODELS=/dev/null "$repo/dream/dream" >/dev/null 2>&1 || true
+  chmod 755 "$fail2/home"
+  snap=$(find "$fail2/tmp" -mindepth 1 -maxdepth 1 -type d | head -n 1)
+  [ -n "$snap" ] ||
+    { echo "check-corpus: a failed restore deleted the pre-pass snapshot" >&2; exit 1; }
+  [ "$(cat "$snap/MEMORY.md")" = '# Memory' ] ||
+    { echo "check-corpus: the kept snapshot is not the pre-pass copy" >&2; exit 1; }
+  [ "$(cat "$snap/projects/old/MEMORY.md")" = '# old' ] ||
+    { echo "check-corpus: the kept snapshot lost an untracked project file" >&2; exit 1; }
+  rm -rf "$fail2/tmp"
+fi
 
 echo 'ok: corpus filter, redaction, torn export, preimage'

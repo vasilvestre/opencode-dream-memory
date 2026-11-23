@@ -92,15 +92,28 @@ done < "$list"
 
 # The deep pass may write only tracked project files: the plugin injects
 # projects/<name>/MEMORY.md for any directory of that name, so a line planted in
-# an untracked file outlives the run. Snapshot shared memory and the project
-# files, then, after the pass, restore both unless every changed project file is
-# tracked.
+# an untracked file outlives the run. Snapshot shared memory, the project files,
+# the diary and today's deep report, then, after the pass, restore all of them
+# unless every changed project file is tracked.
 backup=$(mktemp -d)
-trap 'rm -rf "$backup"' EXIT
+keep_backup=0
+trap '[ "$keep_backup" = 1 ] || rm -rf "$backup"' EXIT
 mkdir -p "$root/projects" "$backup/projects"
-cp "$root/MEMORY.md" "$backup/MEMORY.md" 2>/dev/null || : > "$backup/MEMORY.md"
+
+# Copy one file into the snapshot, or stop before spending a model call: a
+# partial snapshot restored later would overwrite the real file. An absent file
+# stays absent, so the restore removes one the pass creates.
+snapshot() {
+  [ -e "$root/$1" ] || return 0
+  mkdir -p "$(dirname "$backup/$1")"
+  cp "$root/$1" "$backup/$1" ||
+    { echo "dream: cannot snapshot $root/$1, stopping before the deep pass" >&2; exit 1; }
+}
+snapshot MEMORY.md
+snapshot DREAMS.md
+snapshot "dreaming/deep/$day.md"
 cp -R "$root/projects/." "$backup/projects/" ||
-  { echo "dream: cannot snapshot $root, stopping before the deep pass" >&2; exit 1; }
+  { echo "dream: cannot snapshot $root/projects, stopping before the deep pass" >&2; exit 1; }
 
 is_tracked() {
   while IFS= read -r project; do
@@ -127,12 +140,29 @@ untracked_write() {
   return 1
 }
 
-# Put shared memory and the project files back exactly as before the pass.
+# Copy one snapshotted file back, or remove the one the pass created.
+restore_file() {
+  if [ -f "$backup/$1" ]; then
+    mkdir -p "$(dirname "$root/$1")"
+    cp "$backup/$1" "$root/$1" || return 1
+  else
+    rm -f "$root/$1"
+  fi
+}
+
+# Put shared memory, the project files, the diary and today's deep report back
+# exactly as before the pass. The project tree is copied beside the target and
+# swapped in, so a failed copy leaves the old tree in place. Return 1 on any
+# failure: the caller then keeps $backup and reports where it is.
 restore_memory() {
-  rm -rf "$root/projects"
-  mkdir -p "$root/projects"
-  cp -R "$backup/projects/." "$root/projects/"
-  cp "$backup/MEMORY.md" "$root/MEMORY.md"
+  rm -rf "$root/projects.new" "$root/projects.old"
+  cp -R "$backup/projects" "$root/projects.new" || return 1
+  mv "$root/projects" "$root/projects.old" || return 1
+  mv "$root/projects.new" "$root/projects" || return 1
+  rm -rf "$root/projects.old"
+  restore_file MEMORY.md || return 1
+  restore_file DREAMS.md || return 1
+  restore_file "dreaming/deep/$day.md" || return 1
 }
 
 # Per-stage model choice: "<stage> <model> [<model> ...]", first that works wins.
@@ -192,12 +222,16 @@ deep_ok=1
 run_agent dream-deep \
   "Promote today's candidates and write the diary entry for $day. Tracked projects: ${tracked:-none}." "deep $day" || deep_ok=0
 
-# Restore shared memory and every project file unless the pass stayed inside the
-# tracked set, whatever its exit code. A crash after an edit is undone the same
-# way, and a restore skips the cursor advance so the session is read again.
+# Restore memory, diary and report unless the pass stayed inside the tracked
+# set, whatever its exit code. A crash after an edit is undone the same way, and
+# a restore skips the cursor advance so the session is read again.
 reverted=$(untracked_write || true)
 if [ "$deep_ok" = 0 ] || [ -n "$reverted" ]; then
-  restore_memory
+  if ! restore_memory; then
+    keep_backup=1
+    echo "dream: restore failed, the pre-pass copy stays in $backup" >&2
+    exit 1
+  fi
   if [ -n "$reverted" ]; then
     printf '\n- Reverted (not tracked, read again next run): %s\n' "$reverted" \
       >> "$root/dreaming/deep/$day.md"

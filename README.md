@@ -57,7 +57,9 @@ symlinks its own copy keeps working.
 
 The deep pass leaves an audit trail: `dreaming/deep/<date>.md` lists each
 promoted fact with the light-report line that supports it, so a fact stays
-checkable after the corpus is gone.
+checkable after the corpus is gone. A reverted pass puts the report and the
+diary entry back as they were and adds one `Reverted` line, so the audit trail
+only describes facts that are still in memory.
 
 If `opencode` is not on the systemd default `PATH`, write its directory to
 `~/.config/dream.env`, which the unit reads when present:
@@ -109,9 +111,9 @@ Two files, read fresh on every request:
 `projects/homelab/MEMORY.md`. The corpus uses the same tag, so a candidate
 lands there by default; the deep pass may move a fact to the file of another
 project it is about, but only when that project is already tracked (listed in
-`dream-projects`). `dream` restores shared memory and every project file from
-before the run as soon as the deep pass writes outside that list, whatever the
-pass exit code.
+`dream-projects`). `dream` restores shared memory, the diary entry, the deep
+report and every project file from before the run as soon as the deep pass
+writes outside that list, whatever the pass exit code.
 OpenCode creates one plugin instance per project location, so the hook knows
 which project it serves; a worktree uses the name of its main repository.
 
