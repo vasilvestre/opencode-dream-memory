@@ -64,12 +64,14 @@ EOF
     # private copy instead, so the server's files stay untouched.
     tmp=$(mktemp -d) || { echo "dream: cannot create a temporary directory" >&2; exit 1; }
     trap 'rm -rf "$tmp"' EXIT
-    cp "$db" "$tmp/db" || { echo "dream: cannot read $db" >&2; exit 1; }
+    # The -wal goes first: a checkpoint between the two copies must not leave
+    # the db ahead of the frames the copy still holds.
     if [ -e "${db}-wal" ]; then
       cp "${db}-wal" "$tmp/db-wal" || { echo "dream: cannot read ${db}-wal" >&2; exit 1; }
     fi
+    cp "$db" "$tmp/db" || { echo "dream: cannot read $db" >&2; exit 1; }
     # A failed query is fatal: an empty result reads as "nothing is missing".
-    rows=$(sqlite3 -readonly "$tmp/db" 'select distinct worktree from project' 2>/dev/null) ||
+    rows=$(sqlite3 -readonly "$tmp/db" 'select distinct worktree from project') ||
       { echo "dream: cannot query $db" >&2; exit 1; }
     printf '%s\n' "$rows" | while IFS= read -r dir; do
       case $dir in ''|/|"$HOME"|"$HOME/"|"$config"|"$root"|"$root/"|"$HOME/.cache"*|*/.local/share/opencode|*/state/work/*) continue ;; esac
