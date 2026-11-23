@@ -90,15 +90,17 @@ while IFS= read -r project; do
   printf '# %s\n' "$name" > "$memory"
 done < "$list"
 
-# The deep pass must never write a project file for a name outside the list: the
-# plugin injects projects/<name>/MEMORY.md for any directory of that name, so a
-# line planted there outlives the run. Snapshot the files first, then undo any
-# write the pass makes outside the list, with or without a git repo.
+# The deep pass may write only tracked project files: the plugin injects
+# projects/<name>/MEMORY.md for any directory of that name, so a line planted in
+# an untracked file outlives the run. Snapshot shared memory and the project
+# files, then, after the pass, restore both unless every changed project file is
+# tracked.
 backup=$(mktemp -d)
 trap 'rm -rf "$backup"' EXIT
-mkdir -p "$root/projects"
-cp -R "$root/projects/." "$backup/" ||
-  { echo "dream: cannot snapshot $root/projects, stopping before the deep pass" >&2; exit 1; }
+mkdir -p "$root/projects" "$backup/projects"
+cp "$root/MEMORY.md" "$backup/MEMORY.md" 2>/dev/null || : > "$backup/MEMORY.md"
+cp -R "$root/projects/." "$backup/projects/" ||
+  { echo "dream: cannot snapshot $root, stopping before the deep pass" >&2; exit 1; }
 
 is_tracked() {
   while IFS= read -r project; do
@@ -108,23 +110,29 @@ is_tracked() {
   return 1
 }
 
-# Restore each project file the pass changed outside the list, and set
-# `reverted` to the paths so the caller can report them.
-restore_projects() {
+# Print the first changed or new project file whose name is not tracked, so the
+# caller can report it; exit 1 when every change stayed inside the tracked set.
+untracked_write() {
   for memory in "$root"/projects/*/MEMORY.md; do
     [ -f "$memory" ] || continue
     name=$(basename "$(dirname "$memory")")
     is_tracked "$name" && continue
-    before="$backup/$name/MEMORY.md"
-    if [ -f "$before" ]; then
-      cmp -s "$before" "$memory" && continue
-      cp "$before" "$memory"
-    else
-      rm -f "$memory"
-      rmdir "$(dirname "$memory")" 2>/dev/null || true
+    before="$backup/projects/$name/MEMORY.md"
+    if [ -f "$before" ] && cmp -s "$before" "$memory"; then
+      continue
     fi
-    reverted="${reverted}${reverted:+, }projects/$name/MEMORY.md"
+    printf 'projects/%s/MEMORY.md\n' "$name"
+    return 0
   done
+  return 1
+}
+
+# Put shared memory and the project files back exactly as before the pass.
+restore_memory() {
+  rm -rf "$root/projects"
+  mkdir -p "$root/projects"
+  cp -R "$backup/projects/." "$root/projects/"
+  cp "$backup/MEMORY.md" "$root/MEMORY.md"
 }
 
 # Per-stage model choice: "<stage> <model> [<model> ...]", first that works wins.
@@ -180,27 +188,34 @@ if git -C "$root" rev-parse --git-dir >/dev/null 2>&1; then
 fi
 
 echo "dream: deep"
-if run_agent dream-deep \
-  "Promote today's candidates and write the diary entry for $day. Tracked projects: ${tracked:-none}." "deep $day"; then
-  # Undo a write outside the list, then correct the report and leave the cursor
-  # alone, so the reverted fact is read again on the next run instead of lost.
-  reverted=
-  restore_projects
+deep_ok=1
+run_agent dream-deep \
+  "Promote today's candidates and write the diary entry for $day. Tracked projects: ${tracked:-none}." "deep $day" || deep_ok=0
+
+# Restore shared memory and every project file unless the pass stayed inside the
+# tracked set, whatever its exit code. A crash after an edit is undone the same
+# way, and a restore skips the cursor advance so the session is read again.
+reverted=$(untracked_write || true)
+if [ "$deep_ok" = 0 ] || [ -n "$reverted" ]; then
+  restore_memory
   if [ -n "$reverted" ]; then
     printf '\n- Reverted (not tracked, read again next run): %s\n' "$reverted" \
       >> "$root/dreaming/deep/$day.md"
   else
-    # Advance each project's cursor only after both passes succeeded, so a failed
-    # run is retried on the same slice instead of losing it. A project without a
-    # git repo is skipped by dream-corpus, so it keeps a zero cursor and its full
-    # history is backfilled the first time it becomes a git repo.
-    now_ms=$(date +%s%3N)
-    mkdir -p "$root/.dreams/last-run"
-    while IFS= read -r project; do
-      case $project in ''|\#*) continue ;; esac
-      [ -d "$project/.git" ] || continue
-      name=$(basename "$project")
-      printf '%s\n' "$now_ms" > "$root/.dreams/last-run/$name"
-    done < "$list"
+    printf '\n- Reverted (deep pass failed, read again next run)\n' \
+      >> "$root/dreaming/deep/$day.md"
   fi
+else
+  # Advance each project's cursor only after both passes succeeded, so a failed
+  # run is retried on the same slice instead of losing it. A project without a
+  # git repo is skipped by dream-corpus, so it keeps a zero cursor and its full
+  # history is backfilled the first time it becomes a git repo.
+  now_ms=$(date +%s%3N)
+  mkdir -p "$root/.dreams/last-run"
+  while IFS= read -r project; do
+    case $project in ''|\#*) continue ;; esac
+    [ -d "$project/.git" ] || continue
+    name=$(basename "$project")
+    printf '%s\n' "$now_ms" > "$root/.dreams/last-run/$name"
+  done < "$list"
 fi

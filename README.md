@@ -109,8 +109,9 @@ Two files, read fresh on every request:
 `projects/homelab/MEMORY.md`. The corpus uses the same tag, so a candidate
 lands there by default; the deep pass may move a fact to the file of another
 project it is about, but only when that project is already tracked (listed in
-`dream-projects`). `dream` restores any project file the deep pass writes
-outside that list, and deletes one that did not exist before the run.
+`dream-projects`). `dream` restores shared memory and every project file from
+before the run as soon as the deep pass writes outside that list, whatever the
+pass exit code.
 OpenCode creates one plugin instance per project location, so the hook knows
 which project it serves; a worktree uses the name of its main repository.
 

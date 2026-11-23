@@ -54,8 +54,8 @@ Two destinations:
   left `dream-projects` is not tracked, even though the file exists. When the
   subject is not tracked, ignore it and keep the fact under its tag; name the
   skipped subject in the report. Never write a project file outside the tracked
-  list: `dream` restores it, or deletes it when it did not exist before the
-  pass. Keep each file under **2 800 characters**.
+  list: `dream` restores shared memory and the project files from before the
+  pass when it sees one. Keep each file under **2 800 characters**.
 
 The plugin injects shared memory into every session, and the current project's
 file only. It cuts shared memory at 1 000 characters and a project file at

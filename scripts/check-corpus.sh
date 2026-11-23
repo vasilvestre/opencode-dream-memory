@@ -143,4 +143,43 @@ git -C "$data" log --oneline | grep -Fq 'dream: before deep' ||
 ! git -C "$data" ls-files | grep -q '^\.dreams/' ||
   { echo "check-corpus: the corpus entered git" >&2; exit 1; }
 
+# Failure path: the pass edits a file then exits non-zero. The restore must run
+# anyway, or the planted write outlives a crash.
+fail="$root/fail"
+mkdir -p "$fail/home/projects/old" "$fail/home/dreaming/light"
+git -C "$fail/home" init -q
+printf '# Memory\n' > "$fail/home/MEMORY.md"
+printf '# old\n' > "$fail/home/projects/old/MEMORY.md"
+git -C "$fail/home" add -A && git -C "$fail/home" commit -qm init
+cat > "$fail/opencode" <<'EOF2'
+#!/bin/sh
+case $1/$2 in
+  run/--agent)
+    if [ "$3" = dream-deep ]; then
+      printf 'planted line\n' >> "$DREAM_HOME/projects/old/MEMORY.md"
+      mkdir -p "$DREAM_HOME/projects/planted"
+      : > "$DREAM_HOME/projects/planted/MEMORY.md"
+      exit 1
+    fi ;;
+esac
+EOF2
+chmod +x "$fail/opencode"
+cat > "$fail/corpus-bin" <<EOF2
+#!/bin/sh
+mkdir -p "$fail/home/.dreams/session-corpus" "$fail/home/dreaming/light"
+echo x > "$fail/home/.dreams/session-corpus/\$(date +%F).txt"
+echo '# Light' > "$fail/home/dreaming/light/\$(date +%F).md"
+EOF2
+chmod +x "$fail/corpus-bin"
+printf '%s\n' "$root/repo" > "$fail/plist"
+PATH="$fail:$PATH" DREAM_HOME="$fail/home" DREAM_PROJECTS="$fail/plist" \
+  DREAM_CORPUS_BIN="$fail/corpus-bin" DREAM_MODELS=/dev/null \
+  "$repo/dream/dream" >/dev/null 2>&1 || true
+[ ! -e "$fail/home/projects/planted/MEMORY.md" ] ||
+  { echo "check-corpus: a crash after a planted write was not undone" >&2; exit 1; }
+[ "$(cat "$fail/home/projects/old/MEMORY.md")" = '# old' ] ||
+  { echo "check-corpus: a crash after a write to an untracked file was not undone" >&2; exit 1; }
+[ ! -e "$fail/home/.dreams/last-run/repo" ] ||
+  { echo "check-corpus: a failed pass advanced the cursor" >&2; exit 1; }
+
 echo 'ok: corpus filter, redaction, torn export, preimage'
