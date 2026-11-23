@@ -113,7 +113,8 @@ lands there by default; the deep pass may move a fact to the file of another
 project it is about, but only when that project is already tracked (listed in
 `dream-projects`). `dream` restores shared memory, the diary entry, the deep
 report and every project file from before the run as soon as the deep pass
-writes outside that list, whatever the pass exit code.
+writes outside that list, whatever the pass exit code. The run then exits
+non-zero, so the timer reports the night as failed.
 OpenCode creates one plugin instance per project location, so the hook knows
 which project it serves; a worktree uses the name of its main repository.
 

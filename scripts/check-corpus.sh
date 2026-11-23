@@ -26,9 +26,17 @@ case $1/$2 in
     ;;
   run/--agent)
     if [ "$3" = dream-deep ]; then
-      mkdir -p "$DREAM_HOME/projects/planted"
-      : > "$DREAM_HOME/projects/planted/MEMORY.md"
-      printf 'planted line\n' >> "$DREAM_HOME/projects/old/MEMORY.md"
+      if [ -n "${PLANT:-}" ]; then
+        mkdir -p "$DREAM_HOME/projects/planted"
+        : > "$DREAM_HOME/projects/planted/MEMORY.md"
+        printf 'planted line\n' >> "$DREAM_HOME/projects/old/MEMORY.md"
+      fi
+      if [ -n "${MOVE:-}" ]; then
+        printf 'moved fact\n' >> "$DREAM_HOME/projects/repo/MEMORY.md"
+        printf '\n## Diary\n\n- Promoted 1 candidate(s) into memory.\n' >> "$DREAM_HOME/DREAMS.md"
+        printf '# Deep Sleep\n\n- Promoted 1 candidate(s) into memory.\n' \
+          > "$DREAM_HOME/dreaming/deep/$(date +%F).md"
+      fi
     fi
     ;;
 esac
@@ -108,8 +116,9 @@ grep -Fq 'old pd line' "$pdc" ||
 
 # Preimage: a git data directory gets a commit before the deep pass. The pass
 # may write a tracked project file but must keep every other write off the disk,
-# so the fake opencode plants `projects/planted/MEMORY.md` and appends to the
-# untracked `projects/old/MEMORY.md`; the run has to undo both.
+# so with PLANT=1 the fake opencode plants `projects/planted/MEMORY.md` and
+# appends to the untracked `projects/old/MEMORY.md`; the run has to undo both
+# and exit non-zero.
 data="$root/data"
 mkdir -p "$data/dreaming/light"
 git -C "$data" init -q
@@ -128,8 +137,11 @@ printf '%s\n' "$root/repo" > "$root/plist"
 mkdir -p "$data/projects/old"
 printf '# old\n' > "$data/projects/old/MEMORY.md"
 
-PATH="$fake:$PATH" DREAM_HOME="$data" DREAM_PROJECTS="$root/plist" \
-  DREAM_CORPUS_BIN="$root/corpus-bin" "$repo/dream/dream" > /dev/null 2>&1
+if PATH="$fake:$PATH" PLANT=1 DREAM_HOME="$data" DREAM_PROJECTS="$root/plist" \
+  DREAM_CORPUS_BIN="$root/corpus-bin" "$repo/dream/dream" > /dev/null 2>&1; then
+  echo "check-corpus: a reverted pass exited 0" >&2
+  exit 1
+fi
 
 [ -f "$data/projects/repo/MEMORY.md" ] ||
   { echo "check-corpus: dream removed a tracked project file" >&2; exit 1; }
@@ -142,6 +154,32 @@ git -C "$data" log --oneline | grep -Fq 'dream: before deep' ||
   { echo "check-corpus: no preimage commit before the deep pass" >&2; exit 1; }
 ! git -C "$data" ls-files | grep -q '^\.dreams/' ||
   { echo "check-corpus: the corpus entered git" >&2; exit 1; }
+
+# Tracked move: the pass writes a second tracked project's file. The run must
+# keep that file, advance the cursor and leave the report in place, so a restore
+# that fired on a clean run fails here.
+ok="$root/ok"
+mkdir -p "$ok/home/projects/old" "$ok/home/dreaming/light"
+git -C "$ok/home" init -q
+printf '# Memory\n' > "$ok/home/MEMORY.md"
+printf '# old\n' > "$ok/home/projects/old/MEMORY.md"
+cat > "$ok/corpus-bin" <<EOF
+#!/bin/sh
+mkdir -p "$ok/home/.dreams/session-corpus" "$ok/home/dreaming/light"
+echo x > "$ok/home/.dreams/session-corpus/\$(date +%F).txt"
+echo '# Light' > "$ok/home/dreaming/light/\$(date +%F).md"
+EOF
+chmod +x "$ok/corpus-bin"
+printf '%s\n' "$root/repo" > "$ok/plist"
+PATH="$fake:$PATH" MOVE=1 DREAM_HOME="$ok/home" DREAM_PROJECTS="$ok/plist" \
+  DREAM_CORPUS_BIN="$ok/corpus-bin" "$repo/dream/dream" > /dev/null 2>&1 ||
+  { echo "check-corpus: a tracked write made the pass fail" >&2; exit 1; }
+grep -Fq 'moved fact' "$ok/home/projects/repo/MEMORY.md" ||
+  { echo "check-corpus: dream dropped a write to a tracked project file" >&2; exit 1; }
+[ -f "$ok/home/.dreams/last-run/repo" ] ||
+  { echo "check-corpus: a successful pass did not advance the cursor" >&2; exit 1; }
+! grep -Fq 'Reverted' "$ok/home/dreaming/deep/$(date +%F).md" ||
+  { echo "check-corpus: a tracked write was reverted" >&2; exit 1; }
 
 # Failure path: the pass edits a file then exits non-zero. The restore must run
 # anyway, or the planted write outlives a crash.

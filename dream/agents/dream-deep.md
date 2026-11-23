@@ -76,9 +76,10 @@ fits. Deleting a stale fact is part of this pass, not an exception to it.
 - When a file would exceed its budget, delete the weakest facts to make room.
   Never shorten a line below readability to make it fit.
 - Write a fact about a machine, a repository or a setup into that project's
-  file, not into shared memory.
+  file, not into shared memory, when the project is tracked.
 - If shared memory holds a fact about one project, move it into that project's
-  file and delete it from shared memory.
+  file and delete it from shared memory. When that project is untracked, leave
+  the fact in shared memory: no tracked project file may hold it.
 - Never write a secret, a token, or a password.
 - Never create a `projects/<name>/MEMORY.md` file here. The tracked set is the
   entries of `dream-projects`; a fact whose subject is untracked stays under

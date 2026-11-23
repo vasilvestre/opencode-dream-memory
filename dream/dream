@@ -152,13 +152,17 @@ restore_file() {
 
 # Put shared memory, the project files, the diary and today's deep report back
 # exactly as before the pass. The project tree is copied beside the target and
-# swapped in, so a failed copy leaves the old tree in place. Return 1 on any
-# failure: the caller then keeps $backup and reports where it is.
+# swapped in: a failed copy leaves the old tree in place, and a failed swap puts
+# it back before returning. Return 1 on any failure: the caller then keeps
+# $backup and reports where it is.
 restore_memory() {
   rm -rf "$root/projects.new" "$root/projects.old"
   cp -R "$backup/projects" "$root/projects.new" || return 1
   mv "$root/projects" "$root/projects.old" || return 1
-  mv "$root/projects.new" "$root/projects" || return 1
+  if ! mv "$root/projects.new" "$root/projects"; then
+    mv "$root/projects.old" "$root/projects" || true
+    return 1
+  fi
   rm -rf "$root/projects.old"
   restore_file MEMORY.md || return 1
   restore_file DREAMS.md || return 1
@@ -224,7 +228,8 @@ run_agent dream-deep \
 
 # Restore memory, diary and report unless the pass stayed inside the tracked
 # set, whatever its exit code. A crash after an edit is undone the same way, and
-# a restore skips the cursor advance so the session is read again.
+# a restore skips the cursor advance so the session is read again. The run then
+# fails, so a night that keeps reverting shows up as a failed unit.
 reverted=$(untracked_write || true)
 if [ "$deep_ok" = 0 ] || [ -n "$reverted" ]; then
   if ! restore_memory; then
@@ -239,6 +244,7 @@ if [ "$deep_ok" = 0 ] || [ -n "$reverted" ]; then
     printf '\n- Reverted (deep pass failed, read again next run)\n' \
       >> "$root/dreaming/deep/$day.md"
   fi
+  exit 1
 else
   # Advance each project's cursor only after both passes succeeded, so a failed
   # run is retried on the same slice instead of losing it. A project without a
