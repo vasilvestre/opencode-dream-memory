@@ -44,11 +44,16 @@ Two destinations:
 
 - `MEMORY.md` holds facts that are true in every project: how the user wants
   work done, their general preferences. Keep it under **900 characters**.
-- `projects/<project>/MEMORY.md` holds facts about one project. The
-  `project:` line of the candidate is the default name: `project: homelab`
-  means `projects/homelab/MEMORY.md`. When the candidate names a repository or
-  project other than its tag, the subject wins: write it to that project's
-  file instead. Keep each file under **2 800 characters**.
+- `projects/<project>/MEMORY.md` holds facts about one project. The `project:`
+  line is the default name: `project: homelab` means `projects/homelab/MEMORY.md`.
+  The `subject:` line is the project the fact is about; write the fact to
+  `projects/<subject>/MEMORY.md` when it differs from the tag. The subject must
+  be tracked: an exact match for an existing `projects/<name>/MEMORY.md` file,
+  so a single path segment matching `[A-Za-z0-9._-]+`, never `.`, `..`, or a
+  string with `/`. When the subject is not tracked, ignore it and keep the fact
+  under its tag; name the skipped subject in the report. Never create a memory
+  file for a subject that is not already tracked. Keep each file under
+  **2 800 characters**.
 
 The plugin injects shared memory into every session, and the current project's
 file only. It cuts shared memory at 1 000 characters and a project file at
@@ -72,9 +77,9 @@ fits. Deleting a stale fact is part of this pass, not an exception to it.
 - If shared memory holds a fact about one project, move it into that project's
   file and delete it from shared memory.
 - Never write a secret, a token, or a password.
-- If a project file does not exist, create it with a `# <project>` title. Never
-  create one for a project that has no candidate today. A candidate whose
-  subject is another project is a candidate for it.
+- Never create a `projects/<name>/MEMORY.md` file here: the tracked set is the
+  files that already exist. A fact whose subject is untracked stays under its
+  tag, and the report names the skipped subject.
 
 ## 2. Report
 
