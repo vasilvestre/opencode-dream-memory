@@ -4,6 +4,7 @@
 # Usage: dream          corpus, then the light and deep passes (two agent runs)
 #        dream corpus   corpus only, no model, no cost
 #        dream status   one screen of state, read-only
+#        dream discover git repos seen by opencode, missing from the list
 #        dream reset    delete memory, diary, staging and corpus (asks first)
 #
 # Everything is written under $DREAM_HOME (default ~/dreams), never in the
@@ -50,8 +51,39 @@ EOF
     echo "dream: reset done, $root is empty" >&2
     exit 0
     ;;
+  discover)
+    # Print the git repositories opencode has seen but the project list omits,
+    # so you can paste the missing ones in by hand. No model, no writes.
+    db="${DREAM_DB:-$HOME/.local/share/opencode/opencode.db}"
+    config="${XDG_CONFIG_HOME:-$HOME/.config}/opencode"
+    command -v sqlite3 >/dev/null 2>&1 || { echo "dream: discover needs sqlite3" >&2; exit 1; }
+    [ -r "$db" ] || { echo "dream: no opencode database at $db" >&2; exit 1; }
+    listed="${DREAM_PROJECTS:-$HOME/.config/opencode/dream-projects}"
+    # The live database is in WAL mode. A read-only open needs a -shm that only
+    # a running server holds, and a read-write open would create one. Query a
+    # private copy instead, so the server's files stay untouched.
+    tmp=$(mktemp -d) || { echo "dream: cannot create a temporary directory" >&2; exit 1; }
+    trap 'rm -rf "$tmp"' EXIT
+    # The -wal goes first: a checkpoint between the two copies must not leave
+    # the db ahead of the frames the copy still holds.
+    if [ -e "${db}-wal" ]; then
+      cp "${db}-wal" "$tmp/db-wal" || { echo "dream: cannot read ${db}-wal" >&2; exit 1; }
+    fi
+    cp "$db" "$tmp/db" || { echo "dream: cannot read $db" >&2; exit 1; }
+    # A failed query is fatal: an empty result reads as "nothing is missing".
+    rows=$(sqlite3 -readonly "$tmp/db" 'select distinct worktree from project') ||
+      { echo "dream: cannot query $db" >&2; exit 1; }
+    printf '%s\n' "$rows" | while IFS= read -r dir; do
+      case $dir in ''|/|"$HOME"|"$HOME/"|"$config"|"$root"|"$root/"|"$HOME/.cache"*|*/.local/share/opencode|*/state/work/*) continue ;; esac
+      # A nested worktree has a .git file, not a directory; skip it.
+      [ -d "$dir/.git" ] || continue
+      if [ -r "$listed" ] && grep -Fxq "$dir" "$listed"; then continue; fi
+      printf '%s\n' "$dir"
+    done | sort -u
+    exit 0
+    ;;
   '') ;;
-  *) echo "dream: unknown command '$1' (try: dream, dream status, dream corpus, dream reset)" >&2; exit 2 ;;
+  *) echo "dream: unknown command '$1' (try: dream, dream status, dream corpus, dream discover, dream reset)" >&2; exit 2 ;;
 esac
 
 list="${DREAM_PROJECTS:-$HOME/.config/opencode/dream-projects}"

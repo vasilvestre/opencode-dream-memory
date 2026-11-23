@@ -25,6 +25,7 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 
 command -v opencode >/dev/null || { echo "install: opencode is not on PATH" >&2; exit 1; }
 command -v jq >/dev/null || { echo "install: jq is not on PATH" >&2; exit 1; }
+command -v sqlite3 >/dev/null || echo "install: sqlite3 is not on PATH, 'dream discover' will not run" >&2
 
 # A piped install has no dream/ next to the script, so fetch the archive.
 if [ ! -d "$ROOT/dream" ]; then
