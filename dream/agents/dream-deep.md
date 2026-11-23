@@ -44,9 +44,19 @@ Two destinations:
 
 - `MEMORY.md` holds facts that are true in every project: how the user wants
   work done, their general preferences. Keep it under **900 characters**.
-- `projects/<project>/MEMORY.md` holds facts about one project. The
-  `project:` line of the candidate gives the name: `project: homelab` means
-  `projects/homelab/MEMORY.md`. Keep each file under **2 800 characters**.
+- `projects/<project>/MEMORY.md` holds facts about one project. The `project:`
+  line is the default name: `project: homelab` means `projects/homelab/MEMORY.md`.
+  The `subject:` line is the project the fact is about; write the fact to
+  `projects/<subject>/MEMORY.md` when it differs from the tag. The subject must
+  be tracked: a name from the tracked projects list in your prompt, the entries
+  of `dream-projects`, and a single path segment matching `[A-Za-z0-9._-]+`,
+  never `.`, `..`, or a string with `/`. A file left over from a project that
+  left `dream-projects` is not tracked, even though the file exists. When the
+  subject is not tracked, ignore it and keep the fact under its tag; name the
+  skipped subject in the report. Never write a project file outside the tracked
+  list: `dream` restores shared memory, the diary entry and the project files
+  from before the pass when it sees one, and drops that run's report. Keep each
+  file under **2 800 characters**.
 
 The plugin injects shared memory into every session, and the current project's
 file only. It cuts shared memory at 1 000 characters and a project file at
@@ -66,12 +76,14 @@ fits. Deleting a stale fact is part of this pass, not an exception to it.
 - When a file would exceed its budget, delete the weakest facts to make room.
   Never shorten a line below readability to make it fit.
 - Write a fact about a machine, a repository or a setup into that project's
-  file, not into shared memory.
+  file, not into shared memory, when the project is tracked.
 - If shared memory holds a fact about one project, move it into that project's
-  file and delete it from shared memory.
+  file and delete it from shared memory. When that project is untracked, leave
+  the fact in shared memory: no tracked project file may hold it.
 - Never write a secret, a token, or a password.
-- If a project file does not exist, create it with a `# <project>` title. Never
-  create one for a project that has no candidate today.
+- Never create a `projects/<name>/MEMORY.md` file here. The tracked set is the
+  entries of `dream-projects`; a fact whose subject is untracked stays under
+  its tag, and the report names the skipped subject.
 
 ## 2. Report
 
@@ -85,6 +97,7 @@ Write `dreaming/deep/<today>.md`:
 - Removed <n> stale entr(y|ies).
 - Pruned <n> candidate(s) as one-off.
 - Changed: MEMORY.md, projects/<name>/MEMORY.md.
+- Moved: projects/<tag> -> projects/<subject>.
 
 ## Sources
 

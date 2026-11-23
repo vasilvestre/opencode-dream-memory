@@ -1,7 +1,8 @@
 #!/bin/sh
 # Two invariants the dream job must not lose: the corpus never carries the
 # dream's own output or a labelled secret, and the deep pass runs behind a
-# git preimage. Both fail silently in production, hence this check.
+# git preimage and never adds a project file. All fail silently in production,
+# hence this check.
 set -eu
 
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
@@ -22,6 +23,21 @@ case $1/$2 in
       s2) printf '%s\n' '{"info":{"agent":"dream-light"},"messages":[{"type":"user","text":"self output"}]}' ;;
       s3) printf '{"info":{"agent":"build"},"messages":[{"type":"user","text":"trunc"\n' ;;
     esac
+    ;;
+  run/--agent)
+    if [ "$3" = dream-deep ]; then
+      if [ -n "${PLANT:-}" ]; then
+        mkdir -p "$DREAM_HOME/projects/planted"
+        : > "$DREAM_HOME/projects/planted/MEMORY.md"
+        printf 'planted line\n' >> "$DREAM_HOME/projects/old/MEMORY.md"
+      fi
+      if [ -n "${MOVE:-}" ]; then
+        printf 'moved fact\n' >> "$DREAM_HOME/projects/repo/MEMORY.md"
+        printf '\n## Diary\n\n- Promoted 1 candidate(s) into memory.\n' >> "$DREAM_HOME/DREAMS.md"
+        printf '# Deep Sleep\n\n- Promoted 1 candidate(s) into memory.\n' \
+          > "$DREAM_HOME/dreaming/deep/$(date +%F).md"
+      fi
+    fi
     ;;
 esac
 EOF
@@ -98,7 +114,11 @@ PATH="$pc:$PATH" DREAM_HOME="$pc/home2" DREAM_PROJECTS="$pc/projects2" DREAM_SIN
 grep -Fq 'old pd line' "$pdc" ||
   { echo "check-corpus: DREAM_SINCE_HOURS did not widen the window" >&2; exit 1; }
 
-# Preimage: a git data directory gets a commit before the deep pass.
+# Preimage: a git data directory gets a commit before the deep pass. The pass
+# may write a tracked project file but must keep every other write off the disk,
+# so with PLANT=1 the fake opencode plants `projects/planted/MEMORY.md` and
+# appends to the untracked `projects/old/MEMORY.md`; the run has to undo both
+# and exit non-zero.
 data="$root/data"
 mkdir -p "$data/dreaming/light"
 git -C "$data" init -q
@@ -113,13 +133,144 @@ echo x > "$data/.dreams/session-corpus/\$(date +%F).txt"
 echo '# Light' > "$data/dreaming/light/\$(date +%F).md"
 EOF
 chmod +x "$root/corpus-bin"
+printf '%s\n' "$root/repo" > "$root/plist"
+mkdir -p "$data/projects/old"
+printf '# old\n' > "$data/projects/old/MEMORY.md"
 
-PATH="$fake:$PATH" DREAM_HOME="$data" DREAM_PROJECTS=/dev/null \
-  DREAM_CORPUS_BIN="$root/corpus-bin" "$repo/dream/dream" > /dev/null 2>&1
+if PATH="$fake:$PATH" PLANT=1 DREAM_HOME="$data" DREAM_PROJECTS="$root/plist" \
+  DREAM_CORPUS_BIN="$root/corpus-bin" "$repo/dream/dream" > /dev/null 2>&1; then
+  echo "check-corpus: a reverted pass exited 0" >&2
+  exit 1
+fi
+
+[ -f "$data/projects/repo/MEMORY.md" ] ||
+  { echo "check-corpus: dream removed a tracked project file" >&2; exit 1; }
+[ ! -e "$data/projects/planted/MEMORY.md" ] ||
+  { echo "check-corpus: dream kept a project file the deep pass created" >&2; exit 1; }
+[ "$(cat "$data/projects/old/MEMORY.md")" = '# old' ] ||
+  { echo "check-corpus: dream kept a write to an untracked project file" >&2; exit 1; }
 
 git -C "$data" log --oneline | grep -Fq 'dream: before deep' ||
   { echo "check-corpus: no preimage commit before the deep pass" >&2; exit 1; }
 ! git -C "$data" ls-files | grep -q '^\.dreams/' ||
   { echo "check-corpus: the corpus entered git" >&2; exit 1; }
+
+# Tracked move: the pass writes a second tracked project's file. The run must
+# keep that file, advance the cursor and leave the report in place, so a restore
+# that fired on a clean run fails here.
+ok="$root/ok"
+mkdir -p "$ok/home/projects/old" "$ok/home/dreaming/light"
+git -C "$ok/home" init -q
+printf '# Memory\n' > "$ok/home/MEMORY.md"
+printf '# old\n' > "$ok/home/projects/old/MEMORY.md"
+cat > "$ok/corpus-bin" <<EOF
+#!/bin/sh
+mkdir -p "$ok/home/.dreams/session-corpus" "$ok/home/dreaming/light"
+echo x > "$ok/home/.dreams/session-corpus/\$(date +%F).txt"
+echo '# Light' > "$ok/home/dreaming/light/\$(date +%F).md"
+EOF
+chmod +x "$ok/corpus-bin"
+printf '%s\n' "$root/repo" > "$ok/plist"
+PATH="$fake:$PATH" MOVE=1 DREAM_HOME="$ok/home" DREAM_PROJECTS="$ok/plist" \
+  DREAM_CORPUS_BIN="$ok/corpus-bin" "$repo/dream/dream" > /dev/null 2>&1 ||
+  { echo "check-corpus: a tracked write made the pass fail" >&2; exit 1; }
+grep -Fq 'moved fact' "$ok/home/projects/repo/MEMORY.md" ||
+  { echo "check-corpus: dream dropped a write to a tracked project file" >&2; exit 1; }
+[ -f "$ok/home/.dreams/last-run/repo" ] ||
+  { echo "check-corpus: a successful pass did not advance the cursor" >&2; exit 1; }
+! grep -Fq 'Reverted' "$ok/home/dreaming/deep/$(date +%F).md" ||
+  { echo "check-corpus: a tracked write was reverted" >&2; exit 1; }
+
+# Failure path: the pass edits a file then exits non-zero. The restore must run
+# anyway, or the planted write outlives a crash.
+fail="$root/fail"
+mkdir -p "$fail/home/projects/old" "$fail/home/dreaming/light"
+git -C "$fail/home" init -q
+printf '# Memory\n' > "$fail/home/MEMORY.md"
+printf '# old\n' > "$fail/home/projects/old/MEMORY.md"
+git -C "$fail/home" add -A && git -C "$fail/home" commit -qm init
+cat > "$fail/opencode" <<'EOF2'
+#!/bin/sh
+case $1/$2 in
+  run/--agent)
+    if [ "$3" = dream-deep ]; then
+      printf 'planted line\n' >> "$DREAM_HOME/projects/old/MEMORY.md"
+      mkdir -p "$DREAM_HOME/projects/planted"
+      : > "$DREAM_HOME/projects/planted/MEMORY.md"
+      printf '\n## Diary\n\n- Promoted 1 candidate(s) into memory.\n' >> "$DREAM_HOME/DREAMS.md"
+      printf '# Deep Sleep\n\n- Promoted 1 candidate(s) into memory.\n' \
+        > "$DREAM_HOME/dreaming/deep/$(date +%F).md"
+      exit 1
+    fi ;;
+esac
+EOF2
+chmod +x "$fail/opencode"
+cat > "$fail/corpus-bin" <<EOF2
+#!/bin/sh
+mkdir -p "$fail/home/.dreams/session-corpus" "$fail/home/dreaming/light"
+echo x > "$fail/home/.dreams/session-corpus/\$(date +%F).txt"
+echo '# Light' > "$fail/home/dreaming/light/\$(date +%F).md"
+EOF2
+chmod +x "$fail/corpus-bin"
+printf '%s\n' "$root/repo" > "$fail/plist"
+PATH="$fail:$PATH" DREAM_HOME="$fail/home" DREAM_PROJECTS="$fail/plist" \
+  DREAM_CORPUS_BIN="$fail/corpus-bin" DREAM_MODELS=/dev/null \
+  "$repo/dream/dream" >/dev/null 2>&1 || true
+[ ! -e "$fail/home/projects/planted/MEMORY.md" ] ||
+  { echo "check-corpus: a crash after a planted write was not undone" >&2; exit 1; }
+[ "$(cat "$fail/home/projects/old/MEMORY.md")" = '# old' ] ||
+  { echo "check-corpus: a crash after a write to an untracked file was not undone" >&2; exit 1; }
+! grep -Fq 'Promoted 1' "$fail/home/DREAMS.md" 2>/dev/null ||
+  { echo "check-corpus: a crash kept the rolled-back diary entry" >&2; exit 1; }
+deepf="$fail/home/dreaming/deep/$(date +%F).md"
+! grep -Fq 'Promoted 1' "$deepf" 2>/dev/null ||
+  { echo "check-corpus: a crash kept a report of rolled-back facts" >&2; exit 1; }
+grep -Fq 'Reverted' "$deepf" ||
+  { echo "check-corpus: the reverted report does not say so" >&2; exit 1; }
+[ ! -e "$fail/home/.dreams/last-run/repo" ] ||
+  { echo "check-corpus: a failed pass advanced the cursor" >&2; exit 1; }
+
+# Failed restore: the copy back cannot run (a full disk or a permission error).
+# The snapshot must then survive the EXIT trap, or the only complete copy is
+# gone. A read-only home stands in for a full disk, so this part needs a
+# non-root user.
+if [ "$(id -u)" -ne 0 ]; then
+  fail2="$root/fail2"
+  mkdir -p "$fail2/home/projects/old" "$fail2/home/dreaming/light" "$fail2/tmp"
+  printf '# Memory\n' > "$fail2/home/MEMORY.md"
+  printf '# old\n' > "$fail2/home/projects/old/MEMORY.md"
+  cat > "$fail2/opencode" <<'EOF3'
+#!/bin/sh
+case $1/$2 in
+  run/--agent)
+    if [ "$3" = dream-deep ]; then
+      printf 'planted line\n' >> "$DREAM_HOME/projects/old/MEMORY.md"
+      chmod 555 "$DREAM_HOME"
+      exit 1
+    fi ;;
+esac
+EOF3
+  chmod +x "$fail2/opencode"
+  cat > "$fail2/corpus-bin" <<EOF3
+#!/bin/sh
+mkdir -p "$fail2/home/.dreams/session-corpus" "$fail2/home/dreaming/light"
+echo x > "$fail2/home/.dreams/session-corpus/\$(date +%F).txt"
+echo '# Light' > "$fail2/home/dreaming/light/\$(date +%F).md"
+EOF3
+  chmod +x "$fail2/corpus-bin"
+  printf '%s\n' "$root/repo" > "$fail2/plist"
+  TMPDIR="$fail2/tmp" PATH="$fail2:$PATH" DREAM_HOME="$fail2/home" \
+    DREAM_PROJECTS="$fail2/plist" DREAM_CORPUS_BIN="$fail2/corpus-bin" \
+    DREAM_MODELS=/dev/null "$repo/dream/dream" >/dev/null 2>&1 || true
+  chmod 755 "$fail2/home"
+  snap=$(find "$fail2/tmp" -mindepth 1 -maxdepth 1 -type d | head -n 1)
+  [ -n "$snap" ] ||
+    { echo "check-corpus: a failed restore deleted the pre-pass snapshot" >&2; exit 1; }
+  [ "$(cat "$snap/MEMORY.md")" = '# Memory' ] ||
+    { echo "check-corpus: the kept snapshot is not the pre-pass copy" >&2; exit 1; }
+  [ "$(cat "$snap/projects/old/MEMORY.md")" = '# old' ] ||
+    { echo "check-corpus: the kept snapshot lost an untracked project file" >&2; exit 1; }
+  rm -rf "$fail2/tmp"
+fi
 
 echo 'ok: corpus filter, redaction, torn export, preimage'

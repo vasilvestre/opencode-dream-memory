@@ -34,6 +34,7 @@ For each candidate, write:
 ```
 - Candidate: <one sentence, under 200 characters>
   - project: <the tag from the corpus>
+  - subject: <the project the fact is about; the tag when unsure>
   - confidence: <0.00 to 1.00>
   - evidence: .dreams/session-corpus/<today>.txt:<line>
   - recalls: 0
@@ -42,13 +43,17 @@ For each candidate, write:
 
 Rules:
 
+- `subject` names the project the fact is about. Keep it equal to `project`
+  unless the candidate is clearly about another project; use that project's
+  directory base name, never a paraphrase or a guess.
 - At most 15 candidates. Keep the ones a future session would actually need.
 - Prefer what concerns the user: their preferences, corrections, decisions,
   recurring problems, and verified facts about their machines.
 - Ignore project documentation that already lives in the repository.
 - Never record secrets, tokens, passwords, API keys, or file contents that
   look like credentials. If the corpus holds one, do not quote it.
-- Skip anything already written in `MEMORY.md`, in `projects/<project>/MEMORY.md`
-  or in a previous light file.
+- Skip anything already written in `MEMORY.md`, in
+  `projects/<project>/MEMORY.md`, in `projects/<subject>/MEMORY.md` or in a
+  previous light file.
 - If the corpus is empty or holds nothing durable, write only the heading and
   the line `- No candidates today.`
