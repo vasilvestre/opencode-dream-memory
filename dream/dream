@@ -59,6 +59,7 @@ EOF
     command -v sqlite3 >/dev/null 2>&1 || { echo "dream: discover needs sqlite3" >&2; exit 1; }
     [ -r "$db" ] || { echo "dream: no opencode database at $db" >&2; exit 1; }
     listed="${DREAM_PROJECTS:-$HOME/.config/opencode/dream-projects}"
+    [ -f "$listed" ] && [ -r "$listed" ] || { echo "dream: no project list at $listed" >&2; exit 1; }
     # The live database is in WAL mode. A read-only open needs a -shm that only
     # a running server holds, and a read-write open would create one. Query a
     # private copy instead, so the server's files stay untouched.
@@ -96,7 +97,7 @@ if command -v flock >/dev/null 2>&1; then
   flock -n 9 || { echo "dream: another run is in progress" >&2; exit 0; }
 fi
 command -v opencode >/dev/null || { echo "dream: opencode not on PATH" >&2; exit 1; }
-[ -r "$list" ] || { echo "dream: no project list at $list" >&2; exit 1; }
+[ -f "$list" ] && [ -r "$list" ] || { echo "dream: no project list at $list" >&2; exit 1; }
 
 corpus_bin="${DREAM_CORPUS_BIN:-$here/dream-corpus}"
 "$corpus_bin"
